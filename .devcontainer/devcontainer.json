@@ -1,0 +1,13 @@
+{
+  "name": "Identity Clash",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Identity Clash (Express + Socket.IO)",
+      "visibility": "public",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "npm install"
+}

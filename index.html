@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Identity Clash</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js"></script>
+<style>
+  /* Mobile viewport hardening: no rubber-banding, no pull-to-refresh, no gestures leaking out of the app shell */
+  html, body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hidden { display: none !important; }
+  .scroll-area {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------- View 1: Landing ---------- */
+  @keyframes gradient-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .animated-gradient {
+    background: linear-gradient(120deg, #4f46e5, #db2777, #f59e0b, #4f46e5);
+    background-size: 300% 300%;
+    animation: gradient-shift 8s ease infinite;
+  }
+
+  /* ---------- View 2: Coin Toss ---------- */
+  .coin-scene { perspective: 1000px; }
+  .coin {
+    width: 10rem;
+    height: 10rem;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 1.1s cubic-bezier(.3,1.4,.4,1);
+    cursor: pointer;
+  }
+  .coin.flipping { transform: rotateY(1800deg); }
+  .coin-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    border: 4px solid rgba(255,255,255,0.6);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .coin-face.front { background: radial-gradient(circle at 30% 30%, #fbbf24, #b45309); }
+  .coin-face.back  { background: radial-gradient(circle at 30% 30%, #818cf8, #3730a3); transform: rotateY(180deg); }
+
+  /* ---------- View 3: Playing cards ---------- */
+  .card-scene { perspective: 800px; }
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.5s ease;
+  }
+  .card-scene.flipped .card-inner { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  }
+  .card-face.back { transform: rotateY(180deg); opacity: 0.4; filter: grayscale(1); }
+  .card-face.back .card-name { text-decoration: line-through; }
+
+  /* ---------- Panic timer: flashes/scales every 500ms once <=10s ---------- */
+  @keyframes panic-pulse {
+    0%   { opacity: 1;   transform: scale(1); }
+    50%  { opacity: 0.4; transform: scale(1.5); }
+    100% { opacity: 1;   transform: scale(1); }
+  }
+  .panic { animation: panic-pulse 1s steps(1, end) infinite; display: inline-block; }
+
+  /* ---------- Ambient parallax glow (Views 1 & 3): GPU-accelerated, no repaints ---------- */
+  .ambient-glow {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(40px);
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  @keyframes float-glow-a {
+    0%   { transform: translate3d(-6%, -8%, 0) scale(1);    opacity: 0.35; }
+    50%  { transform: translate3d(8%, 10%, 0) scale(1.15);  opacity: 0.55; }
+    100% { transform: translate3d(-6%, -8%, 0) scale(1);    opacity: 0.35; }
+  }
+  @keyframes float-glow-b {
+    0%   { transform: translate3d(6%, 6%, 0) scale(1);      opacity: 0.25; }
+    50%  { transform: translate3d(-8%, -6%, 0) scale(1.1);  opacity: 0.4; }
+    100% { transform: translate3d(6%, 6%, 0) scale(1);      opacity: 0.25; }
+  }
+  .glow-a { animation: float-glow-a 12s ease-in-out infinite; }
+  .glow-b { animation: float-glow-b 15s ease-in-out infinite; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+</style>
+</head>
+<body class="bg-slate-100">
+
+<!-- ============ ROLE PICKER (no/unknown ?role=) ============ -->
+<div id="rolePickerView" class="hidden h-screen flex flex-col items-center justify-center gap-4 bg-slate-900 text-white px-6 text-center">
+  <h1 class="text-2xl font-bold">Identity Clash</h1>
+  <p class="text-slate-400 text-sm">Choose a view for this device</p>
+  <a href="?role=host" class="w-64 text-center bg-indigo-600 active:bg-indigo-700 py-3 rounded-lg font-semibold">Host (iPad / TV)</a>
+  <a href="?role=player" class="w-64 text-center bg-emerald-600 active:bg-emerald-700 py-3 rounded-lg font-semibold">Player (Phone)</a>
+</div>
+
+<!-- ============ HOST DASHBOARD (?role=host) ============ -->
+<div id="hostApp" class="hidden h-screen w-screen flex flex-col items-center justify-between bg-slate-950 text-white py-6 px-4">
+  <h1 class="text-3xl font-bold tracking-wide">Identity Clash &mdash; Game Master</h1>
+
+  <div id="hostTurnBanner" class="hidden bg-amber-400 text-slate-900 px-6 py-2 rounded-full text-xl font-extrabold uppercase tracking-wide"></div>
+
+  <div class="flex items-center gap-6 text-lg font-semibold text-slate-300">
+    <span>Neil <span id="hostScoreNeil">0</span></span>
+    <span class="text-slate-500">vs</span>
+    <span>Gemma <span id="hostScoreGemma">0</span></span>
+  </div>
+
+  <div class="flex flex-col items-center gap-2">
+    <span id="hostTimerDisplay" class="text-[10rem] leading-none font-mono font-bold text-green-500">60</span>
+    <span class="text-slate-400 tracking-widest uppercase text-sm">seconds remaining</span>
+  </div>
+
+  <p id="hostTriviaStatus" class="text-sky-400 text-sm font-semibold min-h-[1.25rem]"></p>
+
+  <div class="flex gap-4">
+    <button id="hostStartBtn" class="bg-green-600 active:bg-green-700 px-8 py-4 rounded-xl text-xl font-semibold">Start</button>
+    <button id="hostPauseBtn" class="bg-yellow-600 active:bg-yellow-700 px-8 py-4 rounded-xl text-xl font-semibold">Pause</button>
+    <button id="hostResetBtn" class="bg-red-600 active:bg-red-700 px-8 py-4 rounded-xl text-xl font-semibold">Reset</button>
+    <button id="hostForceSwapBtn" class="bg-fuchsia-700 active:bg-fuchsia-800 disabled:opacity-40 px-8 py-4 rounded-xl text-xl font-semibold">⚡ Force Turn Change</button>
+  </div>
+
+  <button id="hostSuddenDeathBtn" class="bg-rose-600 active:bg-rose-700 disabled:opacity-40 px-10 py-3 rounded-xl text-lg font-bold uppercase tracking-wide">
+    ☠️ Trigger Sudden Death Trivia
+  </button>
+
+  <!-- Sudden Death Trivia host panel: shown only while the round is live -->
+  <div id="hostSuddenDeathPanel" class="hidden w-full max-w-2xl bg-slate-900 border-2 border-rose-500 rounded-2xl p-4 flex flex-col items-center gap-2">
+    <p class="text-rose-400 font-bold uppercase tracking-widest text-sm">Sudden Death Trivia — Question <span id="hostSdProgress">1/10</span></p>
+    <p id="hostSdCategory" class="text-[11px] uppercase tracking-widest text-slate-400"></p>
+    <p id="hostSdQuestion" class="text-lg font-semibold text-center"></p>
+    <div id="hostSdOptions" class="grid grid-cols-2 gap-2 w-full max-w-xl text-sm"></div>
+    <div class="flex gap-6 text-sm font-semibold text-slate-300 mt-1">
+      <span>Neil <span id="hostSdScoreNeil">0</span></span>
+      <span>Gemma <span id="hostSdScoreGemma">0</span></span>
+    </div>
+    <p id="hostSdAnswerStatus" class="text-xs text-slate-400"></p>
+  </div>
+
+  <div class="w-full max-w-2xl">
+    <p class="text-center text-slate-400 uppercase text-sm tracking-widest mb-3">Theme Selector</p>
+    <div id="hostThemeButtons" class="grid grid-cols-3 gap-3"></div>
+  </div>
+
+  <p id="hostStatusText" class="text-slate-500 text-xs uppercase tracking-widest"></p>
+</div>
+
+<!-- ============ PLAYER APP: Views 1-4 (?role=player) ============ -->
+<div id="playerApp" class="hidden max-w-md mx-auto h-full overflow-hidden relative bg-white shadow-xl">
+
+  <!-- Live scoreboard: visible on every view except the landing screen -->
+  <div id="scoreboardBadge" class="hidden fixed top-2 right-2 z-40 bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+    Neil <span id="scoreNeil">0</span> &mdash; <span id="scoreGemma">0</span> Gemma
+  </div>
+
+  <!-- ============ VIEW 1: LANDING ============ -->
+  <div id="landingView" class="hidden h-full w-full flex flex-col items-center justify-center gap-8 animated-gradient text-white px-6 text-center relative overflow-hidden">
+    <div class="ambient-glow glow-a -z-10 bg-white/30" style="width:16rem; height:16rem; top:8%; left:-12%;"></div>
+    <div class="ambient-glow glow-b -z-10 bg-amber-200/30" style="width:14rem; height:14rem; bottom:4%; right:-12%;"></div>
+    <h1 class="text-5xl font-extrabold tracking-tight drop-shadow-lg">Identity Clash</h1>
+    <p class="text-white/80 text-sm">A real-time guess-who showdown</p>
+    <p class="text-white/70 text-xs">Who's playing on this device?</p>
+    <div class="flex gap-4">
+      <button id="chooseNeilBtn" class="bg-white text-indigo-700 font-bold px-6 py-3 rounded-full shadow-xl active:scale-95 transition-transform">
+        I'm Neil
+      </button>
+      <button id="chooseGemmaBtn" class="bg-white text-pink-700 font-bold px-6 py-3 rounded-full shadow-xl active:scale-95 transition-transform">
+        I'm Gemma
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ VIEW 2: COIN TOSS ============ -->
+  <div id="coinTossView" class="hidden h-full w-full flex flex-col items-center justify-center gap-4 bg-slate-900 text-white px-6 overflow-hidden">
+    <h2 class="text-xl font-bold text-center">Gemma Picks the Category</h2>
+    <p class="text-slate-400 text-xs text-center">Choose a theme, then flip the coin to see who goes first</p>
+
+    <div id="themeButtons" class="grid grid-cols-1 gap-2 w-full max-w-xs"></div>
+
+    <div class="coin-scene">
+      <div id="coin" class="coin">
+        <div class="coin-face front">Neil</div>
+        <div class="coin-face back">Gemma</div>
+      </div>
+    </div>
+
+    <p id="coinResultText" class="min-h-[1.5rem] text-lg font-bold text-amber-400"></p>
+
+    <button id="beginSecretsBtn" disabled class="w-full max-w-xs bg-emerald-600 disabled:opacity-40 active:bg-emerald-700 font-bold py-3 rounded-lg">
+      Continue to Secret Pick
+    </button>
+  </div>
+
+  <!-- ============ VIEW 2.5: SECRET CHARACTER SELECTION ============ -->
+  <div id="secretSelectView" class="hidden h-full w-full flex flex-col overflow-hidden">
+    <header class="bg-purple-700 text-white text-center py-1.5 shrink-0">
+      <h1 class="text-sm font-bold tracking-wide">Pick Your Secret Character</h1>
+      <p id="secretStatusText" class="text-[10px] text-purple-100"></p>
+    </header>
+    <div id="mySecretBadge" class="hidden shrink-0 mx-2 mt-1.5 bg-slate-100 rounded-lg px-2 py-1 flex items-center gap-2 text-xs font-semibold text-slate-800">
+      <span>Your secret:</span>
+      <span id="mySecretIcon" class="text-lg"></span>
+      <span id="mySecretName"></span>
+    </div>
+    <main class="flex-1 overflow-hidden px-2 py-1.5">
+      <div id="secretGrid" class="grid grid-cols-4 grid-rows-6 gap-1 h-full"></div>
+    </main>
+  </div>
+
+  <!-- ============ VIEW 3: TACTICAL GAME BOARD ============ -->
+  <div id="boardView" class="hidden h-full w-full flex flex-col overflow-hidden relative justify-between">
+    <div class="ambient-glow glow-a -z-10 bg-indigo-200/40" style="width:14rem; height:14rem; top:-8%; left:-14%;"></div>
+    <div class="ambient-glow glow-b -z-10 bg-purple-200/30" style="width:12rem; height:12rem; bottom:-8%; right:-14%;"></div>
+
+    <div class="flex flex-col overflow-hidden flex-1">
+      <header class="bg-indigo-600 text-white text-center py-1 shrink-0">
+        <h1 id="boardThemeLabel" class="text-sm font-bold tracking-wide">Identity Clash</h1>
+      </header>
+
+      <div id="turnBanner" class="hidden shrink-0 bg-amber-400 text-slate-900 text-center py-1 text-sm font-extrabold uppercase tracking-wide"></div>
+
+      <div id="mySecretBadgeBoard" class="hidden shrink-0 mx-2 mt-1 bg-slate-100 rounded-lg px-2 py-0.5 flex items-center gap-2 text-[11px] font-semibold text-slate-800">
+        <span>Your secret:</span>
+        <span id="mySecretIconBoard" class="text-base"></span>
+        <span id="mySecretNameBoard"></span>
+      </div>
+
+      <div id="droneBadgeBoard" class="hidden shrink-0 mx-2 mt-1 bg-amber-100 rounded-lg px-2 py-1 flex flex-col items-center gap-1 text-[11px] font-semibold text-amber-800 text-center">
+        <span>🛰️ Recon Drone ready! Deploy to auto-eliminate 3 cards.</span>
+        <button id="droneDeployBtn" class="bg-amber-500 active:bg-amber-600 text-white font-bold px-3 py-1 rounded-md text-[11px]">Deploy Recon Drone</button>
+      </div>
+
+      <div id="smokescreenBadgeBoard" class="hidden shrink-0 mx-2 mt-1 bg-slate-200 rounded-lg px-2 py-1 flex flex-col items-center gap-1 text-[11px] font-semibold text-slate-700 text-center">
+        <span>💨 Smokescreen ready! Blind your opponent for 15 seconds.</span>
+        <button id="smokescreenDeployBtn" class="bg-slate-600 active:bg-slate-700 text-white font-bold px-3 py-1 rounded-md text-[11px]">Deploy Smokescreen</button>
+      </div>
+
+      <section class="shrink-0 px-1 pt-1 pb-1 border-b border-slate-300 bg-slate-50">
+        <div id="referenceBoard" class="grid grid-cols-12 grid-rows-2 gap-0.5"></div>
+      </section>
+
+      <main class="flex-1 overflow-hidden px-1 py-1 relative">
+        <div id="gameBoard" class="grid grid-cols-4 grid-rows-6 gap-1 h-full"></div>
+        <div id="fogOverlay" class="hidden absolute inset-1 z-30 bg-slate-900/95 rounded-lg flex items-center justify-center">
+          <span class="text-white font-extrabold uppercase tracking-widest text-sm">FOG OF WAR</span>
+        </div>
+      </main>
+    </div>
+
+    <div class="shrink-0">
+      <!-- Final Guess + End Turn triggers, sit just above the timer bar -->
+      <div class="flex gap-1 px-1">
+        <button id="finalGuessBtn" class="flex-1 bg-purple-600 active:bg-purple-700 text-white font-bold py-1.5 text-[10px] rounded-t-md">
+          🎯 Final Guess
+        </button>
+        <button id="endTurnBtn" class="flex-1 bg-slate-700 active:bg-slate-800 text-white font-bold py-1.5 text-[10px] rounded-t-md">
+          🏁 End Turn
+        </button>
+      </div>
+
+      <!-- Panic Timer -->
+      <div class="bg-slate-900 text-white px-3 py-2 flex items-center justify-between shadow-2xl">
+        <div class="flex items-center gap-2">
+          <span id="timerDisplay" class="text-3xl font-mono font-bold text-green-500">60</span>
+          <span class="text-xs text-slate-400">sec</span>
+        </div>
+        <div class="flex gap-1.5">
+          <button id="startBtn" class="bg-green-600 active:bg-green-700 text-white text-xs font-semibold px-3 py-2 rounded-md">Start</button>
+          <button id="pauseBtn" class="bg-yellow-600 active:bg-yellow-700 text-white text-xs font-semibold px-3 py-2 rounded-md">Pause</button>
+          <button id="resetBtn" class="bg-red-600 active:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-md">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final Guess modal -->
+    <div id="guessModal" class="hidden fixed inset-0 z-50 bg-black/70 flex flex-col">
+      <div class="bg-white rounded-t-2xl mt-auto max-h-[80%] flex flex-col">
+        <div class="p-3 border-b flex items-center justify-between shrink-0">
+          <h3 class="font-bold text-slate-800">Make Your Final Guess</h3>
+          <button id="guessCancelBtn" class="text-slate-500 text-sm font-semibold">Cancel</button>
+        </div>
+        <div id="guessGrid" class="scroll-area grid grid-cols-4 gap-1.5 p-2 overflow-y-auto"></div>
+        <div class="p-3 border-t shrink-0">
+          <button id="guessConfirmBtn" disabled class="w-full bg-purple-600 disabled:opacity-40 active:bg-purple-700 text-white font-bold py-2.5 rounded-lg">
+            Confirm Guess
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Immunity/event toast (Recon Drone deployment, Sudden Death result, etc.) -->
+    <div id="eventToast" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl shadow-2xl text-sm text-center max-w-xs"></div>
+  </div>
+
+  <!-- ============ VIEW 3.5: SUDDEN DEATH TRIVIA (fully obscures the board) ============ -->
+  <div id="triviaSuddenDeathView" class="hidden h-[100dvh] min-h-0 w-full flex flex-col overflow-hidden bg-slate-950 text-white">
+    <header class="shrink-0 bg-rose-700 text-center py-2 px-2">
+      <h1 class="text-sm font-extrabold uppercase tracking-widest">☠️ Sudden Death Trivia</h1>
+      <p id="sdProgressText" class="text-[11px] text-rose-100"></p>
+    </header>
+    <div class="shrink-0 flex justify-center gap-6 py-1.5 text-xs font-semibold bg-slate-900">
+      <span>Neil <span id="sdScoreNeil">0</span></span>
+      <span>Gemma <span id="sdScoreGemma">0</span></span>
+    </div>
+    <main class="flex-1 min-h-0 flex flex-col items-center justify-center px-4 gap-3 overflow-hidden">
+      <div id="sdWagerPanel" class="hidden flex flex-col items-center gap-3 w-full max-w-xs">
+        <p class="text-sm font-bold text-center">How do you want to play this one?</p>
+        <button id="sdWagerEasyBtn" class="w-full bg-emerald-600 active:bg-emerald-700 rounded-lg px-4 py-3 text-sm font-bold">
+          🛟 Play it Safe (Easy)
+          <span class="block text-[10px] font-normal opacity-80">Correct = standard Recon Drone</span>
+        </button>
+        <button id="sdWagerHardBtn" class="w-full bg-rose-700 active:bg-rose-800 rounded-lg px-4 py-3 text-sm font-bold">
+          🔦 The Interrogation (Hard)
+          <span class="block text-[10px] font-normal opacity-80">Correct = leaked intel · Wrong = 2 cards resurrected</span>
+        </button>
+        <p id="sdWagerStatus" class="text-center text-xs font-semibold min-h-[1rem] text-slate-300"></p>
+      </div>
+      <p id="sdCategory" class="text-[10px] uppercase tracking-widest text-rose-400 font-bold"></p>
+      <p id="sdQuestion" class="text-base font-bold text-center leading-snug"></p>
+      <div id="sdOptions" class="grid grid-cols-1 gap-2 w-full max-w-xs"></div>
+      <p id="sdStatusText" class="text-center text-xs font-semibold min-h-[1rem]"></p>
+    </main>
+  </div>
+
+  <!-- ============ VIEW 4: MATCH OVER ============ -->
+  <div id="matchOverView" class="hidden h-full w-full flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-amber-400 via-pink-500 to-purple-600 text-white px-6 text-center">
+    <h2 class="text-sm uppercase tracking-widest text-white/80">Match Over</h2>
+    <p id="matchOverHeadline" class="text-4xl font-extrabold drop-shadow-lg"></p>
+    <p id="matchOverDetail" class="text-white/90 text-sm max-w-xs"></p>
+    <div class="bg-black/30 rounded-xl px-6 py-3 font-bold text-lg">
+      Neil <span id="finalScoreNeil">0</span> &mdash; <span id="finalScoreGemma">0</span> Gemma
+    </div>
+    <button id="nextRoundBtn" class="bg-white text-purple-700 font-bold px-8 py-3 rounded-full shadow-xl active:scale-95 transition-transform mt-2">
+      Next Round
+    </button>
+  </div>
+
+</div>
+
+<script>
+  // ---------------------------------------------------------------
+  // ROLE DETECTION
+  // ---------------------------------------------------------------
+  const params = new URLSearchParams(location.search);
+  const role = params.get("role");
+
+  const rolePickerView = document.getElementById("rolePickerView");
+  const hostApp = document.getElementById("hostApp");
+  const playerApp = document.getElementById("playerApp");
+
+  // ---------------------------------------------------------------
+  // VIEW ELEMENTS (player app only)
+  // ---------------------------------------------------------------
+  const landingView = document.getElementById("landingView");
+  const coinTossView = document.getElementById("coinTossView");
+  const secretSelectView = document.getElementById("secretSelectView");
+  const boardView = document.getElementById("boardView");
+  const triviaSuddenDeathView = document.getElementById("triviaSuddenDeathView");
+  const matchOverView = document.getElementById("matchOverView");
+  const VIEWS = { landing: landingView, coinToss: coinTossView, secretSelect: secretSelectView, board: boardView, trivia_sudden_death: triviaSuddenDeathView, matchOver: matchOverView };
+
+  // ---------------------------------------------------------------
+  // 3 THEMES: each boolean trait is derived from a fixed positional
+  // pattern over 24 slots, guaranteeing an exact 12 true / 12 false split.
+  // ---------------------------------------------------------------
+  const PATTERNS = [
+    (i) => i < 12,                          // first half / second half
+    (i) => i % 2 === 0,                     // alternating singles
+    (i) => i % 4 < 2,                       // alternating pairs
+    (i) => Math.floor(i / 2) % 2 === 0,     // alternating pairs, offset
+    (i) => i % 6 < 3,                       // alternating triples
+    (i) => i % 8 < 4                        // alternating quads
+  ];
+
+  function rotate(arr, n) {
+    return arr.slice(n).concat(arr.slice(0, n));
+  }
+
+  function buildCharacters(names, icons, traitKeys, patterns) {
+    return names.map((name, i) => {
+      const traits = {};
+      traitKeys.forEach((key, ti) => {
+        traits[key] = patterns[ti](i);
+      });
+      return {
+        name,
+        icon: icons[i % icons.length],
+        ...traits
+      };
+    });
+  }
+
+  // --- Theme 1: Feline Felons ---
+  const FELINE_NAMES = ["Marley", "Dilly", "Whiskers", "Tabby", "Shadow", "Mittens", "Luna", "Simba", "Oreo", "Ginger", "Smokey", "Patches", "Bandit", "Cleo", "Felix", "Tom", "Salem", "Boots", "Milo", "Chester", "Pumpkin", "Biscuit", "Nala", "Jinx"];
+  const FELINE_ICONS = ["🐱", "🐈", "🐈‍⬛", "🙀", "😺", "😸", "😻", "😼"];
+  const FELINE_TRAITS = ["coatIsLight", "eyesAreGreen", "nameHasOddLetters", "hasMoreVowels", "wearingGlasses", "isSmiling"];
+
+  // --- Theme 2: Cyber-Smugglers ---
+  const CYBER_NAMES = ["Zex", "Nyra", "Krix", "Vex", "Orin", "Talis", "Rook", "Sable", "Drax", "Kyo", "Nova", "Riven", "Cass", "Bex", "Jynx", "Thorne", "Ezra", "Vale", "Korr", "Lira", "Dax", "Ryn", "Sev", "Quill"];
+  const CYBER_ICONS = ["🤖", "👽", "🛸", "🔫", "🧑‍🚀", "🦾", "🕶️", "👾"];
+  const CYBER_TRAITS = ["isAlien", "hasCybernetics", "hasNeonVisor", "holdsBlaster", "wearsTrenchCoat", "hasHoloTattoo"];
+
+  // --- Theme 3: 8-Bit Tavern ---
+  const TAVERN_NAMES = ["Thane", "Wren", "Doran", "Nissa", "Garruk", "Alistair", "Brenna", "Coren", "Delia", "Edric", "Fira", "Gareth", "Hilda", "Ivor", "Juno", "Kael", "Selwyn", "Osric", "Petra", "Quinlan", "Rosalind", "Soren", "Tilda", "Ulric"];
+  const TAVERN_ICONS = ["🧙", "🧝", "🗡️", "🛡️", "🍺", "🐉", "🔮", "🏹"];
+  const TAVERN_TRAITS = ["isMagicUser", "hasPointyEars", "hasPetFamiliar", "wearingHood", "hasMagicAura", "holdingTankard"];
+
+  // --- Theme 4: Bermuda Mystics ---
+  const BERMUDA_NAMES = ["Marisol", "Triton", "Coral", "Nerissa", "Bermudez", "Isla", "Kai", "Wade", "Pearl", "Finn", "Delphine", "Rio", "Marina", "Storm", "Reef", "Tempest", "Sirena", "Cove", "Azure", "Barnaby", "Tallulah", "Poseidon", "Wisp", "Driftwood"];
+  const BERMUDA_ICONS = ["🧜", "🐚", "⚓", "🌊", "🦑", "🏝️", "🔱", "👻"];
+  const BERMUDA_TRAITS = ["isMerfolk", "hasConchShell", "wearsSeaGlassCharm", "hasBarnacleScar", "isGhostlyPale", "carriesLantern"];
+
+  // --- Theme 5: Cinematic Legends ---
+  const CINEMA_NAMES = ["Orson", "Hitch", "Bourne", "Bond", "Noir", "Cassian", "Vesper", "Marlowe", "Kane", "Rebecca", "Vertigo", "Ripley", "Bishop", "Solo", "Anatole", "Faye", "Quill", "Draven", "Ingrid", "Sabine", "Croft", "Argento", "Lumet", "Kubrick"];
+  const CINEMA_ICONS = ["🕵️", "🎬", "🍸", "🎥", "🗡️", "🕶️", "📽️", "🔎"];
+  const CINEMA_TRAITS = ["isDoubleAgent", "wearsFedora", "hasHiddenCamera", "isFilmDirector", "hasMysteriousScar", "holdsMartini"];
+
+  // --- Theme 6: The London Locals ---
+  const LONDON_NAMES = ["Alfie", "Pippa", "Nigel", "Zara", "Barnaby", "Cressida", "Gary", "Sharon", "Trevor", "Fiona", "Reggie", "Poppy", "Clive", "Nigella", "Wesley", "Tallulah", "Kevin", "Doris", "Ronnie", "Mabel", "Gordon", "Ivy", "Stanley", "Elsie"];
+  const LONDON_ICONS = ["🧑", "👩", "👨", "🧔", "🧓", "👴", "👵", "🧑‍🦱"];
+  const LONDON_TRAITS = ["hasGlasses", "hasHat", "hasScarf", "hasLightHair", "isSmiling"];
+  // A 24x5 binary design derived from 5 mutually orthogonal columns of an order-24
+  // Hadamard matrix: every trait is an exact 12/12 split, AND every pair of traits
+  // is an exact 6/6/6/6 split - a true 50/50 question no matter which trait(s) you ask about.
+  const LONDON_TRAIT_MATRIX = [
+    [true, true, true, true, true],
+    [false, true, true, true, true],
+    [false, false, true, true, true],
+    [false, false, false, true, true],
+    [false, false, false, false, true],
+    [false, false, false, false, false],
+    [true, false, false, false, false],
+    [false, true, false, false, false],
+    [true, false, true, false, false],
+    [false, true, false, true, false],
+    [false, false, true, false, true],
+    [true, false, false, true, false],
+    [true, true, false, false, true],
+    [false, true, true, false, false],
+    [false, false, true, true, false],
+    [true, false, false, true, true],
+    [true, true, false, false, true],
+    [false, true, true, false, false],
+    [true, false, true, true, false],
+    [false, true, false, true, true],
+    [true, false, true, false, true],
+    [true, true, false, true, false],
+    [true, true, true, false, true],
+    [true, true, true, true, false]
+  ];
+
+  function buildMatrixCharacters(names, icons, traitKeys, matrix) {
+    return names.map((name, i) => {
+      const traits = {};
+      traitKeys.forEach((key, ti) => {
+        traits[key] = matrix[i][ti];
+      });
+      return {
+        name,
+        icon: icons[i % icons.length],
+        ...traits
+      };
+    });
+  }
+
+  const THEME_LABELS = {
+    isAlien: "Is an Alien", hasCybernetics: "Has Cybernetics", hasNeonVisor: "Wears a Neon Visor",
+    holdsBlaster: "Holds a Blaster", wearsTrenchCoat: "Wears a Trench Coat", hasHoloTattoo: "Has a Holo-Tattoo",
+    coatIsLight: "Has a Light Coat", eyesAreGreen: "Has Green Eyes", nameHasOddLetters: "Name Has Odd # Letters",
+    hasMoreVowels: "Name Has More Vowels", wearingGlasses: "Wears Glasses", isSmiling: "Is Smiling",
+    isMagicUser: "Is a Magic User", hasPointyEars: "Has Pointy Ears", hasPetFamiliar: "Has a Pet Familiar",
+    wearingHood: "Wears a Hood", hasMagicAura: "Has a Magic Aura", holdingTankard: "Holding a Tankard",
+    isMerfolk: "Is Merfolk", hasConchShell: "Has a Conch Shell", wearsSeaGlassCharm: "Wears a Sea Glass Charm",
+    hasBarnacleScar: "Has a Barnacle Scar", isGhostlyPale: "Is Ghostly Pale", carriesLantern: "Carries a Lantern",
+    isDoubleAgent: "Is a Double Agent", wearsFedora: "Wears a Fedora", hasHiddenCamera: "Has a Hidden Camera",
+    isFilmDirector: "Is a Film Director", hasMysteriousScar: "Has a Mysterious Scar", holdsMartini: "Holds a Martini",
+    hasGlasses: "Has Glasses", hasHat: "Wearing a Hat", hasScarf: "Wearing a Scarf", hasLightHair: "Has Light Hair"
+  };
+
+  const THEMES = {
+    feline: {
+      label: "Feline Felons",
+      traits: FELINE_TRAITS,
+      characters: buildCharacters(FELINE_NAMES, FELINE_ICONS, FELINE_TRAITS, PATTERNS)
+    },
+    cyber: {
+      label: "Cyber-Smugglers",
+      traits: CYBER_TRAITS,
+      characters: buildCharacters(CYBER_NAMES, CYBER_ICONS, CYBER_TRAITS, rotate(PATTERNS, 2))
+    },
+    tavern: {
+      label: "8-Bit Tavern",
+      traits: TAVERN_TRAITS,
+      characters: buildCharacters(TAVERN_NAMES, TAVERN_ICONS, TAVERN_TRAITS, rotate(PATTERNS, 4))
+    },
+    bermuda: {
+      label: "Bermuda Mystics",
+      traits: BERMUDA_TRAITS,
+      characters: buildCharacters(BERMUDA_NAMES, BERMUDA_ICONS, BERMUDA_TRAITS, rotate(PATTERNS, 1))
+    },
+    cinema: {
+      label: "Cinematic Legends",
+      traits: CINEMA_TRAITS,
+      characters: buildCharacters(CINEMA_NAMES, CINEMA_ICONS, CINEMA_TRAITS, rotate(PATTERNS, 5))
+    },
+    london: {
+      label: "The London Locals",
+      traits: LONDON_TRAITS,
+      characters: buildMatrixCharacters(LONDON_NAMES, LONDON_ICONS, LONDON_TRAITS, LONDON_TRAIT_MATRIX)
+    }
+  };
+
+  // Sudden Death Trivia category display labels (server sends short category keys).
+  const SUDDEN_DEATH_CATEGORY_LABELS = {
+    hardGeneral: "Hard General Knowledge",
+    tennis: "Grand Slam Tennis",
+    cinema: "Auteur Cinema",
+    chess: "Chess Openings",
+    reggae: "Reggae History"
+  };
+
+  // ---------------------------------------------------------------
+  // SOCKET.IO - single source of truth: view, coin toss, theme,
+  // card elimination, and the shared countdown clock.
+  // ---------------------------------------------------------------
+  const socket = io();
+  let serverState = { view: "landing", coinResult: null, theme: null, eliminated: { neil: [], gemma: [] }, secretsLocked: { neil: false, gemma: false }, activeTurn: null, timeRemaining: 60, running: false, score: { neil: 0, gemma: 0 }, matchResult: null, suddenDeath: null, lastSuddenDeathResult: null, droneTokens: { neil: 0, gemma: 0 }, smokescreenTokens: { neil: 0, gemma: 0 }, fogged: { neil: false, gemma: false } };
+  let currentView = null;
+  let activeThemeKey = null;
+
+  // ---------------------------------------------------------------
+  // SENSORY LAYER: zero-dependency haptics (Vibration API) + synth
+  // sound effects (Web Audio API). Silently no-ops on unsupported
+  // browsers/devices (e.g. iOS Safari has no Vibration API).
+  // ---------------------------------------------------------------
+  function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  let audioCtx = null;
+  function getAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  // Unlock/create the AudioContext on the very first tap so later,
+  // non-gesture-triggered sounds (e.g. the timer tick) are allowed to play.
+  document.addEventListener("pointerdown", () => getAudioContext(), { once: true });
+
+  function playClick() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.05);
+    gainNode.gain.setValueAtTime(0.25, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(gainNode).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  function playTick() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(1800, now);
+    gainNode.gain.setValueAtTime(0.15, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gainNode).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.06);
+  }
+
+  function playChime() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    // Triumphant 3-tone ascending chime: C5 -> E5 -> G5
+    [[523.25, 0], [659.25, 0.15], [783.99, 0.3]].forEach(([freq, delay]) => {
+      const now = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+      gainNode.gain.setValueAtTime(0.2, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.connect(gainNode).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.32);
+    });
+  }
+
+  // Dramatic rising "whoosh" for state/view transitions.
+  function playWhoosh() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.exponentialRampToValueAtTime(900, now + 0.35);
+    gainNode.gain.setValueAtTime(0.001, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.3, now + 0.08);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(gainNode).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.42);
+  }
+
+  // Heavy sub-bass "boom" for timer expiry.
+  function playBoom() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+    gainNode.gain.setValueAtTime(0.6, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc.connect(gainNode).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.62);
+  }
+
+  // Synthesized radar sweep for the Recon Drone deployment.
+  function playRadarSweep() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [0, 0.15, 0.3].forEach((delay, i) => {
+      const t = now + delay;
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(600 + i * 200, t);
+      osc.frequency.exponentialRampToValueAtTime(1400 + i * 200, t + 0.12);
+      gainNode.gain.setValueAtTime(0.001, t);
+      gainNode.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(gainNode).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.16);
+    });
+  }
+
+  // Fires a tick sound + frantic double-pulse haptic on every second
+  // that ticks by while the panic timer is in the red zone (<=10s), and a
+  // heavy boom the instant the clock hits zero.
+  let lastTimeRemaining = null;
+  function handlePanicSensory(state) {
+    const prev = lastTimeRemaining;
+    lastTimeRemaining = state.timeRemaining;
+    if (prev === null || prev === state.timeRemaining) return;
+    if (state.timeRemaining > 0 && state.timeRemaining <= 10) {
+      playTick();
+      vibrate([40, 30, 40]);
+    }
+    if (prev > 0 && state.timeRemaining <= 0) {
+      playBoom();
+      vibrate([120, 60, 120]);
+    }
+  }
+
+  function styleTimerElement(el, timeRemaining) {
+    el.classList.remove("text-green-500", "text-orange-500", "text-red-600", "panic");
+    if (timeRemaining >= 30) {
+      el.classList.add("text-green-500");
+    } else if (timeRemaining >= 10) {
+      el.classList.add("text-orange-500");
+    } else {
+      el.classList.add("text-red-600");
+      if (timeRemaining > 0) el.classList.add("panic");
+    }
+  }
+
+  function showView(viewKey) {
+    if (viewKey === currentView) return;
+    currentView = viewKey;
+    Object.entries(VIEWS).forEach(([key, el]) => el.classList.toggle("hidden", key !== viewKey));
+    playWhoosh();
+  }
+
+  let lastEliminatedKey = null;
+
+  socket.on("state:update", (state) => {
+    const themeChanged = state.theme !== serverState.theme;
+    serverState = state;
+    handlePanicSensory(state);
+
+    // Keep activeThemeKey in sync regardless of which view triggers the
+    // first update (e.g. a reconnect landing directly on matchOver).
+    if (state.theme && activeThemeKey !== state.theme) {
+      activeThemeKey = state.theme;
+    }
+
+    if (role === "player") {
+      showView(state.view);
+      renderScoreboard();
+
+      if (state.view === "coinToss") renderCoinToss();
+      if (state.view === "secretSelect") renderSecretSelect();
+      if (state.view === "board") {
+        if (themeChanged) {
+          document.getElementById("boardThemeLabel").textContent = THEMES[activeThemeKey].label;
+          renderReferenceBoard();
+        }
+        renderSecretBadge();
+        renderDroneBadge();
+        renderSmokescreenBadge();
+        renderFogOverlay();
+        renderTurnBanner();
+        const myEliminated = myName ? state.eliminated[myName] || [] : [];
+        const eliminatedKey = myEliminated.join(",");
+        if (themeChanged || eliminatedKey !== lastEliminatedKey) {
+          lastEliminatedKey = eliminatedKey;
+          renderGameBoard();
+        }
+        renderTimer();
+        checkSuddenDeathResultToast();
+      }
+      if (state.view === "trivia_sudden_death") renderSuddenDeath();
+      if (state.view === "matchOver") renderMatchOver();
+    } else if (role === "host") {
+      renderHostDashboard();
+    }
+  });
+
+  function capitalize(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function renderScoreboard() {
+    document.getElementById("scoreboardBadge").classList.toggle("hidden", serverState.view === "landing");
+    document.getElementById("scoreNeil").textContent = serverState.score.neil;
+    document.getElementById("scoreGemma").textContent = serverState.score.gemma;
+  }
+
+  // ---------------------------------------------------------------
+  // AI VOICE HOST (?role=host only) - a witty British game-show announcer
+  // via the Web Speech API. Silently no-ops if unsupported.
+  // ---------------------------------------------------------------
+  let cachedVoice = null;
+  function pickBritishVoice() {
+    if (!window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const british = voices.filter((v) => v.lang === "en-GB");
+    const preferredNames = ["Daniel", "Arthur", "Martha"];
+    const named = british.find((v) => preferredNames.some((n) => v.name.includes(n)));
+    return named || british[0] || null;
+  }
+  if (window.speechSynthesis) {
+    cachedVoice = pickBritishVoice();
+    window.speechSynthesis.onvoiceschanged = () => {
+      cachedVoice = pickBritishVoice();
+    };
+  }
+
+  function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    const voice = cachedVoice || pickBritishVoice();
+    if (voice) utter.voice = voice;
+    utter.lang = voice ? voice.lang : "en-GB";
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  }
+
+  // Queues after whatever is currently speaking instead of cutting it off -
+  // used to read a Flash Bang question immediately after the announcer's intro line.
+  function speakQueued(text) {
+    if (!window.speechSynthesis) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    const voice = cachedVoice || pickBritishVoice();
+    if (voice) utter.voice = voice;
+    utter.lang = voice ? voice.lang : "en-GB";
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  }
+
+  let voicePrevView = null;
+  let voicePrevActiveTurn = null;
+  let voiceAnnouncedTenSeconds = false;
+  let voiceAnnouncedResultId = null;
+
+  function handleVoiceHost(state) {
+    if (state.view === "board") {
+      if (voicePrevView !== "board" && state.activeTurn) {
+        speak(`Right then, let's get on with it. ${capitalize(state.activeTurn)}, you have the floor.`);
+        voiceAnnouncedTenSeconds = false;
+      } else if (voicePrevActiveTurn && state.activeTurn && state.activeTurn !== voicePrevActiveTurn) {
+        speak(`Over to you, ${capitalize(state.activeTurn)}. Don't mess it up.`);
+      }
+      if (state.timeRemaining === 10 && !voiceAnnouncedTenSeconds) {
+        voiceAnnouncedTenSeconds = true;
+        speak("Blimey, ten seconds left! Spit it out!");
+      }
+      if (state.timeRemaining > 10) voiceAnnouncedTenSeconds = false;
+    }
+
+    if (state.view === "trivia_sudden_death" && voicePrevView !== "trivia_sudden_death") {
+      speak("Right, put the board down. It's Sudden Death Trivia time.");
+    }
+
+    if (state.lastSuddenDeathResult && state.lastSuddenDeathResult.id !== voiceAnnouncedResultId) {
+      voiceAnnouncedResultId = state.lastSuddenDeathResult.id;
+      const winner = state.lastSuddenDeathResult.winner;
+      speak(winner ? `${capitalize(winner)} scrapes it and nabs the Recon Drone. Get in.` : "A tie. How terribly diplomatic of you both.");
+    }
+
+    if (state.view === "matchOver" && voicePrevView !== "matchOver" && state.matchResult) {
+      speak(`${capitalize(state.matchResult.winner)} takes it! And that's a wrap. An absolute masterclass.`);
+    }
+
+    voicePrevView = state.view;
+    voicePrevActiveTurn = state.activeTurn;
+  }
+
+  // ---------------------------------------------------------------
+  // HOST DASHBOARD (?role=host) - TV-friendly clock, theme selector,
+  // and live score. Picking a theme immediately drives a fresh round
+  // (theme + secret-select) across all connected player phones.
+  // ---------------------------------------------------------------
+  function initHostView() {
+    document.getElementById("hostStartBtn").addEventListener("click", () => socket.emit("timer:start"));
+    document.getElementById("hostPauseBtn").addEventListener("click", () => socket.emit("timer:pause"));
+    document.getElementById("hostResetBtn").addEventListener("click", () => socket.emit("timer:reset"));
+    document.getElementById("hostForceSwapBtn").addEventListener("click", () => socket.emit("turn:force_swap"));
+    document.getElementById("hostSuddenDeathBtn").addEventListener("click", () => socket.emit("suddenDeath:start"));
+
+    const themeButtons = document.getElementById("hostThemeButtons");
+    Object.keys(THEMES).forEach((key) => {
+      const btn = document.createElement("button");
+      btn.dataset.theme = key;
+      btn.className = "py-4 rounded-xl text-lg font-semibold bg-slate-800 border-2 border-transparent";
+      btn.textContent = THEMES[key].label;
+      btn.addEventListener("click", () => {
+        socket.emit("theme:select", key);
+        socket.emit("secretSelect:begin");
+      });
+      themeButtons.appendChild(btn);
+    });
+  }
+
+  function renderHostDashboard() {
+    handleVoiceHost(serverState);
+
+    const timerEl = document.getElementById("hostTimerDisplay");
+    timerEl.textContent = serverState.timeRemaining;
+    styleTimerElement(timerEl, serverState.timeRemaining);
+
+    document.getElementById("hostScoreNeil").textContent = serverState.score.neil;
+    document.getElementById("hostScoreGemma").textContent = serverState.score.gemma;
+
+    const turnBanner = document.getElementById("hostTurnBanner");
+    if (serverState.activeTurn) {
+      turnBanner.classList.remove("hidden");
+      turnBanner.textContent = `${capitalize(serverState.activeTurn)}'s Turn`;
+    } else {
+      turnBanner.classList.add("hidden");
+    }
+
+    const themeButtons = document.getElementById("hostThemeButtons");
+    [...themeButtons.children].forEach((btn) => {
+      const isActive = btn.dataset.theme === serverState.theme;
+      btn.classList.toggle("border-indigo-400", isActive);
+      btn.classList.toggle("bg-indigo-700", isActive);
+    });
+
+    document.getElementById("hostSuddenDeathBtn").disabled = serverState.view !== "board";
+    document.getElementById("hostForceSwapBtn").disabled = serverState.view !== "board" || !serverState.activeTurn;
+
+    const sd = serverState.suddenDeath;
+    const sdPanel = document.getElementById("hostSuddenDeathPanel");
+    sdPanel.classList.toggle("hidden", !sd);
+    if (sd) {
+      document.getElementById("hostSdProgress").textContent = `${sd.currentIndex + 1}/${sd.questions.length}`;
+      const q = sd.questions[sd.currentIndex];
+      document.getElementById("hostSdCategory").textContent = SUDDEN_DEATH_CATEGORY_LABELS[q.category] || q.category;
+      const optionsEl = document.getElementById("hostSdOptions");
+      if (sd.phase === "wager") {
+        document.getElementById("hostSdQuestion").textContent = q.isFlashBang ? "🔊 Flash Bang incoming - question hidden until wagers are locked in." : "Waiting for both players to wager...";
+        optionsEl.innerHTML = "";
+        const wageredNames = ["neil", "gemma"].filter((n) => sd.wagers[n]).map((n) => `${capitalize(n)}: ${sd.wagers[n] === "hard" ? "Interrogation" : "Safe"}`);
+        document.getElementById("hostSdAnswerStatus").textContent = wageredNames.length ? wageredNames.join(" · ") : "Waiting for wagers...";
+      } else {
+        document.getElementById("hostSdQuestion").textContent = q.isFlashBang ? `🔊 ${q.question}` : q.question;
+        optionsEl.innerHTML = "";
+        q.options.forEach((opt, i) => {
+          const div = document.createElement("div");
+          const isCorrect = sd.phase === "reveal" && i === sd.revealCorrectIndex;
+          div.className = `rounded-md px-2 py-1.5 ${isCorrect ? "bg-emerald-600" : "bg-slate-800"}`;
+          div.textContent = `${["A", "B", "C", "D"][i]}. ${opt}`;
+          optionsEl.appendChild(div);
+        });
+        const answeredNames = ["neil", "gemma"].filter((n) => sd.answers[n] !== null).map(capitalize);
+        document.getElementById("hostSdAnswerStatus").textContent = sd.phase === "reveal"
+          ? "Question resolved — next up shortly..."
+          : (answeredNames.length ? `Answered: ${answeredNames.join(", ")}` : "Waiting for answers...");
+      }
+      document.getElementById("hostSdScoreNeil").textContent = sd.scores.neil;
+      document.getElementById("hostSdScoreGemma").textContent = sd.scores.gemma;
+    }
+
+    const triviaStatusEl = document.getElementById("hostTriviaStatus");
+    if (serverState.lastSuddenDeathResult && serverState.view === "board") {
+      const r = serverState.lastSuddenDeathResult;
+      triviaStatusEl.textContent = r.winner
+        ? `☠️ Sudden Death complete — ${capitalize(r.winner)} wins ${r.scores[r.winner]}-${r.scores[r.winner === "neil" ? "gemma" : "neil"]} and earns the Recon Drone!`
+        : "☠️ Sudden Death complete — it's a tie!";
+    } else {
+      triviaStatusEl.textContent = "";
+    }
+
+    document.getElementById("hostStatusText").textContent = `View: ${serverState.view}`;
+  }
+
+  // ---------------------------------------------------------------
+  // VIEW 1: LANDING - pick which player this device belongs to
+  // ---------------------------------------------------------------
+  let myName = localStorage.getItem("identityClashName");
+
+  function enterAs(name) {
+    myName = name;
+    localStorage.setItem("identityClashName", name);
+    socket.emit("view:enterClash");
+  }
+
+  document.getElementById("chooseNeilBtn").addEventListener("click", () => enterAs("neil"));
+  document.getElementById("chooseGemmaBtn").addEventListener("click", () => enterAs("gemma"));
+
+  // ---------------------------------------------------------------
+  // VIEW 2: COIN TOSS - Gemma (or either player) picks the category,
+  // then flips the coin to decide who asks the first question.
+  // ---------------------------------------------------------------
+  const coin = document.getElementById("coin");
+  const coinResultText = document.getElementById("coinResultText");
+  const beginSecretsBtn = document.getElementById("beginSecretsBtn");
+  const themeButtonsEl = document.getElementById("themeButtons");
+
+  Object.keys(THEMES).forEach((key) => {
+    const btn = document.createElement("button");
+    btn.dataset.theme = key;
+    btn.className = "py-3 rounded-lg text-sm font-semibold bg-slate-800 border-2 border-transparent";
+    btn.textContent = THEMES[key].label;
+    btn.addEventListener("click", () => socket.emit("theme:select", key));
+    themeButtonsEl.appendChild(btn);
+  });
+
+  coin.addEventListener("click", () => {
+    socket.emit("coin:flip");
+  });
+
+  beginSecretsBtn.addEventListener("click", () => {
+    if (!serverState.theme || !serverState.coinResult) return;
+    socket.emit("secretSelect:begin");
+  });
+
+  function renderCoinToss() {
+    [...themeButtonsEl.children].forEach((btn) => {
+      const isActive = btn.dataset.theme === serverState.theme;
+      btn.classList.toggle("border-emerald-400", isActive);
+      btn.classList.toggle("bg-emerald-700", isActive);
+    });
+
+    if (serverState.coinResult) {
+      coin.classList.add("flipping");
+      coinResultText.textContent = `${capitalize(serverState.coinResult)} goes first!`;
+    } else {
+      coin.classList.remove("flipping");
+      coinResultText.textContent = "";
+    }
+
+    beginSecretsBtn.disabled = !(serverState.theme && serverState.coinResult);
+  }
+
+  // ---------------------------------------------------------------
+  // VIEW 2.5: SECRET CHARACTER SELECTION - each player taps one
+  // character on their own device to lock it in as their secret.
+  // ---------------------------------------------------------------
+  let mySecretChoice = null; // { name, icon } - purely local display, never sent back to server
+
+  function renderSecretBadge() {
+    [
+      { badge: "mySecretBadge", icon: "mySecretIcon", name: "mySecretName" },
+      { badge: "mySecretBadgeBoard", icon: "mySecretIconBoard", name: "mySecretNameBoard" }
+    ].forEach(({ badge, icon, name }) => {
+      const badgeEl = document.getElementById(badge);
+      if (!mySecretChoice) {
+        badgeEl.classList.add("hidden");
+        return;
+      }
+      badgeEl.classList.remove("hidden");
+      document.getElementById(icon).textContent = mySecretChoice.icon;
+      document.getElementById(name).textContent = mySecretChoice.name;
+    });
+  }
+
+  function renderSecretSelect() {
+    // A fresh round resets server-side lock flags; clear any stale local badge from a previous round.
+    if (myName && !serverState.secretsLocked[myName] && mySecretChoice) {
+      mySecretChoice = null;
+    }
+    renderSecretBadge();
+
+    const myLocked = myName ? !!serverState.secretsLocked[myName] : false;
+    const opponent = myName === "neil" ? "gemma" : "neil";
+    const opponentLocked = myName ? !!serverState.secretsLocked[opponent] : false;
+
+    const statusEl = document.getElementById("secretStatusText");
+    if (myLocked && opponentLocked) {
+      statusEl.textContent = "Both ready! Starting round...";
+    } else if (myLocked) {
+      statusEl.textContent = `Waiting for ${capitalize(opponent)} to choose...`;
+    } else {
+      statusEl.textContent = "Tap a character below to lock in your secret identity";
+    }
+
+    const secretGrid = document.getElementById("secretGrid");
+    // Only rebuild the grid once per theme entry; lock state is reflected via pointer-events.
+    if (secretGrid.dataset.builtFor !== activeThemeKey) {
+      secretGrid.dataset.builtFor = activeThemeKey;
+      secretGrid.innerHTML = "";
+      THEMES[activeThemeKey].characters.forEach((c, i) => {
+        const badge = document.createElement("div");
+        badge.className = `bg-white border border-slate-200 shadow-sm rounded-lg flex flex-col items-center justify-center cursor-pointer select-none`;
+        badge.innerHTML = `
+          <span class="text-lg">${c.icon}</span>
+          <span class="text-[9px] font-semibold text-slate-800 text-center leading-tight">${c.name}</span>
+        `;
+        badge.addEventListener("click", () => {
+          if (!myName || serverState.secretsLocked[myName]) return;
+          vibrate(40);
+          playClick();
+          mySecretChoice = { name: c.name, icon: c.icon };
+          renderSecretBadge();
+          socket.emit("secret:choose", { name: myName, characterIndex: i });
+        });
+        secretGrid.appendChild(badge);
+      });
+    }
+    secretGrid.style.pointerEvents = myLocked ? "none" : "auto";
+    secretGrid.style.opacity = myLocked ? "0.5" : "1";
+  }
+
+  // ---------------------------------------------------------------
+  // VIEW 3: TACTICAL GAME BOARD + PANIC TIMER
+  // ---------------------------------------------------------------
+  document.getElementById("startBtn").addEventListener("click", () => socket.emit("timer:start"));
+  document.getElementById("pauseBtn").addEventListener("click", () => socket.emit("timer:pause"));
+  document.getElementById("resetBtn").addEventListener("click", () => socket.emit("timer:reset"));
+
+  function renderTimer() {
+    const el = document.getElementById("timerDisplay");
+    el.textContent = serverState.timeRemaining;
+    styleTimerElement(el, serverState.timeRemaining);
+  }
+
+  function renderReferenceBoard() {
+    const referenceBoard = document.getElementById("referenceBoard");
+    referenceBoard.innerHTML = "";
+    THEMES[activeThemeKey].characters.forEach((c) => {
+      const badge = document.createElement("div");
+      badge.className = `bg-white border border-slate-200 shadow-sm rounded flex items-center justify-center text-[10px] leading-none aspect-square`;
+      badge.textContent = c.icon;
+      badge.title = c.name;
+      referenceBoard.appendChild(badge);
+    });
+  }
+
+  function renderGameBoard() {
+    const gameBoard = document.getElementById("gameBoard");
+    gameBoard.innerHTML = "";
+    const myEliminated = myName ? serverState.eliminated[myName] || [] : [];
+    THEMES[activeThemeKey].characters.forEach((c, i) => {
+      const isEliminated = !!myEliminated[i];
+      const scene = document.createElement("div");
+      scene.className = `card-scene w-full h-full cursor-pointer select-none ${isEliminated ? "flipped" : ""}`;
+      scene.innerHTML = `
+        <div class="card-inner">
+          <div class="card-face front">
+            <span class="text-lg">${c.icon}</span>
+            <span class="card-name text-[9px] font-semibold text-slate-800 leading-tight text-center">${c.name}</span>
+          </div>
+          <div class="card-face back">
+            <span class="text-lg">${c.icon}</span>
+            <span class="card-name text-[9px] font-semibold text-slate-800 leading-tight text-center">${c.name}</span>
+          </div>
+        </div>
+      `;
+      scene.addEventListener("click", () => {
+        if (!myName) return;
+        vibrate(40);
+        playClick();
+        socket.emit("card:toggle", { name: myName, index: i });
+      });
+      gameBoard.appendChild(scene);
+    });
+  }
+
+  // --- Final Guess modal ---
+  const guessModal = document.getElementById("guessModal");
+  const guessGrid = document.getElementById("guessGrid");
+  const guessConfirmBtn = document.getElementById("guessConfirmBtn");
+  let selectedGuessIndex = null;
+
+  document.getElementById("finalGuessBtn").addEventListener("click", () => {
+    if (!myName) {
+      alert("Please refresh and choose Neil or Gemma first.");
+      return;
+    }
+    openGuessModal();
+  });
+
+  document.getElementById("guessCancelBtn").addEventListener("click", () => {
+    guessModal.classList.add("hidden");
+  });
+
+  guessConfirmBtn.addEventListener("click", () => {
+    if (selectedGuessIndex === null) return;
+    playChime();
+    socket.emit("guess:submit", { guesser: myName, characterIndex: selectedGuessIndex });
+    guessModal.classList.add("hidden");
+  });
+
+  function openGuessModal() {
+    selectedGuessIndex = null;
+    guessConfirmBtn.disabled = true;
+    guessGrid.innerHTML = "";
+    THEMES[activeThemeKey].characters.forEach((c, i) => {
+      const badge = document.createElement("div");
+      badge.className = `bg-white shadow-sm rounded-lg flex flex-col items-center justify-center py-2 cursor-pointer select-none border-2 border-transparent`;
+      badge.innerHTML = `
+        <span class="text-xl">${c.icon}</span>
+        <span class="text-[10px] font-semibold text-slate-800 mt-0.5 text-center">${c.name}</span>
+      `;
+      badge.addEventListener("click", () => {
+        selectedGuessIndex = i;
+        [...guessGrid.children].forEach((el) => el.classList.remove("border-purple-600"));
+        badge.classList.add("border-purple-600");
+        guessConfirmBtn.disabled = false;
+      });
+      guessGrid.appendChild(badge);
+    });
+    guessModal.classList.remove("hidden");
+  }
+
+  // ---------------------------------------------------------------
+  // SUDDEN DEATH TRIVIA - a Host-triggered event. All screens shift into
+  // trivia_sudden_death for a 10-question race; both players answer the
+  // same question simultaneously, then the winner earns the Recon Drone.
+  // ---------------------------------------------------------------
+  let lastSuddenDeathKey = null;
+  let lastAnnouncedResultToastId = null;
+
+  document.getElementById("endTurnBtn").addEventListener("click", () => {
+    if (!myName) return;
+    socket.emit("turn:end", { name: myName });
+  });
+
+  function renderSuddenDeath() {
+    const sd = serverState.suddenDeath;
+    if (!sd) return;
+    const q = sd.questions[sd.currentIndex];
+    const key = `${sd.currentIndex}:${sd.phase}`;
+    const optionsEl = document.getElementById("sdOptions");
+    const statusEl = document.getElementById("sdStatusText");
+    const wagerPanel = document.getElementById("sdWagerPanel");
+    const wagerStatus = document.getElementById("sdWagerStatus");
+    const letters = ["A", "B", "C", "D"];
+
+    document.getElementById("sdProgressText").textContent = `Question ${sd.currentIndex + 1} of ${sd.questions.length}`;
+    document.getElementById("sdScoreNeil").textContent = sd.scores.neil;
+    document.getElementById("sdScoreGemma").textContent = sd.scores.gemma;
+
+    const myWagered = myName ? !!sd.wagers[myName] : false;
+    wagerPanel.classList.toggle("hidden", sd.phase !== "wager");
+    document.getElementById("sdCategory").classList.toggle("hidden", sd.phase === "wager");
+    document.getElementById("sdQuestion").classList.toggle("hidden", sd.phase === "wager");
+    optionsEl.classList.toggle("hidden", sd.phase === "wager");
+    document.getElementById("sdWagerEasyBtn").disabled = myWagered;
+    document.getElementById("sdWagerHardBtn").disabled = myWagered;
+    document.getElementById("sdWagerEasyBtn").classList.toggle("opacity-40", myWagered);
+    document.getElementById("sdWagerHardBtn").classList.toggle("opacity-40", myWagered);
+    if (sd.phase === "wager") {
+      wagerStatus.textContent = myWagered ? "Waiting for your opponent to choose..." : "";
+    }
+
+    if (key !== lastSuddenDeathKey) {
+      lastSuddenDeathKey = key;
+      document.getElementById("sdCategory").textContent = SUDDEN_DEATH_CATEGORY_LABELS[q.category] || q.category;
+      document.getElementById("sdQuestion").textContent = q.isFlashBang ? "🔊 Listen to the Host..." : q.question;
+
+      const myAnswered = myName ? sd.answers[myName] !== null : false;
+      optionsEl.innerHTML = "";
+      q.options.forEach((opt, i) => {
+        const btn = document.createElement("button");
+        btn.className = "w-full text-left bg-slate-800 active:bg-slate-700 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60";
+        btn.textContent = `${letters[i]}. ${opt}`;
+        btn.disabled = sd.phase !== "question" || myAnswered;
+        btn.addEventListener("click", () => {
+          if (!myName || serverState.suddenDeath.phase !== "question") return;
+          if (serverState.suddenDeath.answers[myName] !== null) return;
+          [...optionsEl.children].forEach((b) => (b.disabled = true));
+          vibrate(40);
+          socket.emit("suddenDeath:answer", { name: myName, selectedIndex: i });
+        });
+        optionsEl.appendChild(btn);
+      });
+
+      statusEl.className = "text-center text-xs font-semibold min-h-[1rem] text-slate-300";
+      statusEl.textContent = sd.phase === "question" ? (myAnswered ? "Waiting for your opponent..." : "Race to answer first!") : "";
+    }
+
+    if (sd.phase === "reveal") {
+      [...optionsEl.children].forEach((btn, i) => {
+        btn.disabled = true;
+        btn.classList.remove("bg-slate-800", "bg-slate-700");
+        if (i === sd.revealCorrectIndex) btn.classList.add("bg-emerald-600");
+      });
+      const myCorrect = myName && sd.answers[myName] === sd.revealCorrectIndex;
+      statusEl.className = `text-center text-xs font-bold min-h-[1rem] ${myCorrect ? "text-emerald-400" : "text-red-400"}`;
+      statusEl.textContent = myCorrect ? "🎉 Correct!" : `❌ The answer was ${letters[sd.revealCorrectIndex]}.`;
+    } else if (sd.phase === "question" && myName && sd.answers[myName] !== null) {
+      statusEl.textContent = "Waiting for your opponent...";
+    }
+  }
+
+  document.getElementById("sdWagerEasyBtn").addEventListener("click", () => {
+    if (!myName || !serverState.suddenDeath || serverState.suddenDeath.phase !== "wager") return;
+    if (serverState.suddenDeath.wagers[myName]) return;
+    vibrate(30);
+    socket.emit("trivia:wager", { name: myName, choice: "easy" });
+  });
+  document.getElementById("sdWagerHardBtn").addEventListener("click", () => {
+    if (!myName || !serverState.suddenDeath || serverState.suddenDeath.phase !== "wager") return;
+    if (serverState.suddenDeath.wagers[myName]) return;
+    vibrate([30, 20, 30]);
+    socket.emit("trivia:wager", { name: myName, choice: "hard" });
+  });
+
+  // ---------------------------------------------------------------
+  // RECON DRONE - earned via an Easy-wager correct answer, or the Sudden
+  // Death round winner bonus. Auto-eliminates 3 random still-active cards
+  // on the deployer's own board.
+  // ---------------------------------------------------------------
+  document.getElementById("droneDeployBtn").addEventListener("click", () => {
+    if (!myName || !serverState.droneTokens[myName]) return;
+    socket.emit("drone:deploy", { name: myName });
+  });
+
+  socket.on("drone:deployed", (payload) => {
+    playRadarSweep();
+    vibrate([50, 40, 50, 40, 90]);
+    if (role === "host") {
+      speak("Recon drone deployed. Let's clear out some of this rubbish.");
+    }
+    if (role === "player" && myName === payload.name) {
+      const toast = document.getElementById("eventToast");
+      toast.textContent = `🛰️ Recon Drone deployed! ${payload.indices.length} cards auto-eliminated.`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
+  });
+
+  function renderDroneBadge() {
+    const badge = document.getElementById("droneBadgeBoard");
+    badge.classList.toggle("hidden", !myName || !serverState.droneTokens[myName]);
+  }
+
+  // ---------------------------------------------------------------
+  // SMOKESCREEN SABOTAGE - earned every 3 consecutive correct Sudden Death
+  // answers. Covers the opponent's own gameBoard in fog for 15 seconds.
+  // ---------------------------------------------------------------
+  document.getElementById("smokescreenDeployBtn").addEventListener("click", () => {
+    if (!myName || !serverState.smokescreenTokens[myName]) return;
+    socket.emit("sabotage:smokescreen", { name: myName });
+  });
+
+  socket.on("sabotage:smokescreen", (payload) => {
+    vibrate([80, 40, 80]);
+    if (role === "host") {
+      speak(`Smokescreen deployed. ${capitalize(payload.target)} is flying blind.`);
+    }
+    if (role === "player" && myName === payload.by) {
+      const toast = document.getElementById("eventToast");
+      toast.textContent = `💨 Smokescreen deployed on ${capitalize(payload.target)}!`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
+  });
+
+  function renderSmokescreenBadge() {
+    const badge = document.getElementById("smokescreenBadgeBoard");
+    badge.classList.toggle("hidden", !myName || !serverState.smokescreenTokens[myName]);
+  }
+
+  function renderFogOverlay() {
+    const overlay = document.getElementById("fogOverlay");
+    overlay.classList.toggle("hidden", !myName || !serverState.fogged[myName]);
+  }
+
+  // ---------------------------------------------------------------
+  // THE INTERROGATION ROOM - server-verified leak of a true opponent trait
+  // (Hard wager, correct) and the card-resurrection penalty (Hard wager, wrong).
+  // ---------------------------------------------------------------
+  socket.on("host:leak_intel", (payload) => {
+    if (role === "host") {
+      speak(`Off the record... ${capitalize(payload.name)}'s target is definitely ${payload.phrase}.`);
+    }
+    const toast = document.getElementById("eventToast");
+    if (toast) {
+      toast.textContent = `🕵️ Leaked intel: ${capitalize(payload.name)}'s target is definitely ${payload.phrase}.`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 3500);
+    }
+  });
+
+  socket.on("penalty:resurrect", (payload) => {
+    vibrate([100, 60, 100]);
+    if (role === "host") {
+      speak(`${capitalize(payload.name)} got it wrong! Resurrecting two cards. Absolute disaster.`);
+    }
+    if (role === "player" && myName === payload.name) {
+      const toast = document.getElementById("eventToast");
+      toast.textContent = `☠️ Wrong on the Interrogation! ${payload.indices.length} cards resurrected on your board.`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 3000);
+    }
+  });
+
+  socket.on("wager:chosen", (payload) => {
+    if (role === "host" && payload.choice === "hard") {
+      speak(`${capitalize(payload.name)} chose the hard route. Bold. Let's see if it pays off.`);
+    }
+  });
+
+  socket.on("trivia:flash_bang", (payload) => {
+    if (role === "host") {
+      speak("Flash bang question! Open your ears, no reading allowed.");
+      speakQueued(payload.question);
+    }
+  });
+
+  function checkSuddenDeathResultToast() {
+    const result = serverState.lastSuddenDeathResult;
+    if (!result || result.id === lastAnnouncedResultToastId) return;
+    lastAnnouncedResultToastId = result.id;
+    const toast = document.getElementById("eventToast");
+    toast.textContent = result.winner
+      ? `☠️ Sudden Death over! ${capitalize(result.winner)} wins ${Math.max(result.scores.neil, result.scores.gemma)}-${Math.min(result.scores.neil, result.scores.gemma)}.`
+      : "☠️ Sudden Death ends in a tie!";
+    toast.classList.remove("hidden");
+    playChime();
+    setTimeout(() => toast.classList.add("hidden"), 3000);
+  }
+
+  function renderTurnBanner() {
+    const banner = document.getElementById("turnBanner");
+    if (!serverState.activeTurn) {
+      banner.classList.add("hidden");
+      return;
+    }
+    banner.classList.remove("hidden");
+    banner.textContent = `${capitalize(serverState.activeTurn)}'s Turn`;
+  }
+
+  // ---------------------------------------------------------------
+  // VIEW 4: MATCH OVER - victory screen, confetti, next round
+  // ---------------------------------------------------------------
+  document.getElementById("nextRoundBtn").addEventListener("click", () => {
+    socket.emit("match:nextRound");
+  });
+
+  function renderMatchOver() {
+    const result = serverState.matchResult;
+    const theme = THEMES[activeThemeKey];
+    if (!result || !theme) return;
+
+    const secretChar = theme.characters[result.secretIndex];
+    const guessedChar = theme.characters[result.guessedIndex];
+    const winnerLabel = capitalize(result.winner);
+    const loserLabel = capitalize(result.loser);
+
+    document.getElementById("matchOverHeadline").textContent = `🏆 ${winnerLabel} Wins the Round!`;
+    document.getElementById("matchOverDetail").textContent = result.correct
+      ? `${winnerLabel} correctly guessed ${secretChar.name}!`
+      : `${loserLabel} guessed ${guessedChar.name}, but the secret was ${secretChar.name}.`;
+    document.getElementById("finalScoreNeil").textContent = serverState.score.neil;
+    document.getElementById("finalScoreGemma").textContent = serverState.score.gemma;
+
+    playChime();
+    if (window.confetti) {
+      confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // BOOT: pick the correct app shell for this device's ?role= param.
+  // The first state:update from the server drives all rendering.
+  // ---------------------------------------------------------------
+  if (role === "host") {
+    hostApp.classList.remove("hidden");
+    initHostView();
+  } else if (role === "player") {
+    playerApp.classList.remove("hidden");
+  } else {
+    rolePickerView.classList.remove("hidden");
+  }
+</script>
+</body>
+</html>
+
