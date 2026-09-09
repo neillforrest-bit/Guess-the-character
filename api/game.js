@@ -23,7 +23,7 @@ function view(game, player) {
   else delete copy.secrets;
   return { game: copy, player: player ? Number(player) : null };
 }
-function reject(message) { const error = new Error(message); error.status = 400; throw error; }
+function reject(message, status = 400) { const error = new Error(message); error.status = status; throw error; }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
@@ -40,20 +40,60 @@ export default async function handler(req, res) {
     let player = playerFor(game, deviceId);
     if (action === 'join') {
       if (!player && !game.players[2]) {
-        const joined = await redis('set', `guess-who-join:${game.id}`, deviceId, 'NX', 'EX', ttlSeconds);
-        if (joined) { const latest = await read(gameId); if (latest && !latest.players[2]) { latest.players[2] = deviceId; latest.messages.push(message('Player 2 joined from their own phone. Pick your secret!', 'system')); await save(latest); return res.json(view(latest, '2')); } }
+        const joinKey = `guess-who-join:${game.id}`;
+        const joined = await redis('set', joinKey, deviceId, 'NX', 'EX', 10);
+        if (joined) {
+          try {
+            const latest = await read(gameId);
+            if (latest && !latest.players[2]) {
+              latest.players[2] = deviceId;
+              latest.messages.push(message('Player 2 joined from their own phone. Pick your secret!', 'system'));
+              await save(latest);
+              return res.json(view(latest, '2'));
+            }
+          } finally {
+            await redis('del', joinKey);
+          }
+        }
+        const lockTtl = await redis('ttl', joinKey);
+        if (lockTtl > 10) await redis('del', joinKey);
+        const latest = await read(gameId);
+        player = latest && playerFor(latest, deviceId);
+        if (player) return res.json(view(latest, player));
+        if (latest?.players[2]) return res.status(403).json({ error: 'This is a private 1v1 game and already has two devices.' });
+        return res.status(409).json({ error: 'Joining the game. Please try again.' });
       }
       if (!player) return res.status(403).json({ error: 'This is a private 1v1 game and already has two devices.' });
       return res.json(view(game, player));
     }
     if (!player) return res.status(403).json({ error: 'This phone is not one of the two players.' });
     if (action === 'state') return res.json(view(game, player));
-    const me = Number(player), other = me === 1 ? 2 : 1;
     if (action === 'secret') {
-      if (game.secrets[me]) reject('Your secret is already locked.');
-      if (!characters.has(payload.secret)) reject('Choose a character from this board.');
-      game.secrets[me] = payload.secret; game.messages.push(message(`Player ${me} locked their mystery character.`, 'system'));
-    } else if (action === 'ask') {
+      const secretLock = `guess-who-secret:${game.id}`;
+      if (!await redis('set', secretLock, deviceId, 'NX', 'EX', 10)) reject('Your opponent is locking in. Try again in a moment.', 409);
+      try {
+        const latest = await read(gameId);
+        const latestPlayer = latest && playerFor(latest, deviceId);
+        if (!latest || !latestPlayer) reject('This phone is not one of the two players.');
+        const me = Number(latestPlayer);
+        if (latest.secrets[me]) reject('Your secret is already locked.');
+        if (!characters.has(payload.secret)) reject('Choose a character from this board.');
+        latest.secrets[me] = payload.secret;
+        latest.messages.push(message(`Player ${me} locked their mystery character.`, 'system'));
+        if (latest.secrets[1] && latest.secrets[2] && !latest.startedAt) {
+          latest.startedAt = Date.now();
+          latest.currentPlayer = 1;
+          latest.messages.push(message('Both players are ready. Game on — Player 1 goes first!', 'system'));
+        }
+        latest.messages = latest.messages.slice(-18);
+        await save(latest);
+        return res.json(view(latest, latestPlayer));
+      } finally {
+        await redis('del', secretLock);
+      }
+    }
+    const me = Number(player), other = me === 1 ? 2 : 1;
+    if (action === 'ask') {
       if (game.currentPlayer !== me || game.pendingQuestion || !game.secrets[1] || !game.secrets[2]) reject('Wait for your turn.');
       game.pendingQuestion = { text: payload.question, asker: me }; game.messages.push(message(`P${me}: ${payload.question}`, 'self'));
     } else if (action === 'answer') {

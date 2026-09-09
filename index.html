@@ -41,7 +41,7 @@
     <div class="bottom-actions"><button id="clue-button" class="secondary" type="button">Use clue</button><button id="guess-button" class="guess-button" type="button">Make a guess</button></div>
   </main>
 
-  <dialog id="secret-dialog" class="sheet"><form method="dialog" id="secret-form"><p class="eyebrow">Eyes only</p><h2>Pick your mystery character</h2><p class="deal-copy">Your secret stays on your phone.</p><select id="secret-select" required></select><button type="submit">Lock it in</button></form></dialog>
+  <dialog id="secret-dialog" class="sheet"><form method="dialog" id="secret-form"><p class="eyebrow">Eyes only</p><h2>Pick your mystery character</h2><p class="deal-copy">Your secret stays on your phone.</p><select id="secret-select" required></select><button id="lock-secret" type="submit">Lock it in</button></form></dialog>
   <dialog id="guess-dialog" class="sheet"><form method="dialog" id="guess-form"><button class="close" id="cancel-guess" type="button" aria-label="Close">×</button><p class="eyebrow">Big moment</p><h2>Who is their character?</h2><select id="guess-select" required></select><button type="submit">Lock in my guess</button></form></dialog>
   <dialog id="trivia-dialog" class="sheet"><form method="dialog"><button class="close" id="cancel-trivia" type="button" aria-label="Close">×</button><p class="eyebrow">Bonus round</p><h2 id="trivia-question"></h2><div id="trivia-options" class="trivia-options"></div></form></dialog>
   <dialog id="twist-dialog" class="sheet twist"><form method="dialog"><button class="close" id="close-twist" type="button" aria-label="Close">×</button><p class="eyebrow">Shake it up</p><h2>Twist card</h2><p id="twist-copy"></p></form></dialog>
