@@ -1,59 +1,52 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f65382" />
-    <meta name="description" content="A portrait-first two-player guessing game with chat and trivia bonuses." />
-    <title>Guess Who? After Dark</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main class="game-shell">
-      <header class="topbar">
-        <div><p class="eyebrow">Pass-the-phone edition</p><h1>Guess Who?</h1></div>
-        <button id="new-game" class="icon-button" type="button" aria-label="Start a new game">↻</button>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f65382" />
+  <meta name="description" content="A portrait-first 1v1 Guess Who game for two phones." />
+  <title>Guess Who? 1v1</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div><p class="eyebrow">Two phones. One mystery.</p><h1>Guess Who?</h1></div>
+      <button id="new-game" class="icon-button" type="button" aria-label="Start a new game">↻</button>
+    </header>
 
-      <section class="status-card" aria-live="polite">
-        <div class="player-badge" id="player-badge">P1</div>
-        <div><p id="turn-label">Player 1 is asking</p><small id="status-copy">Ask Player 2 a yes-or-no question.</small></div>
-        <span class="sparkles" id="bonus-count" title="Bonus clues">✦ 0</span>
-      </section>
+    <section class="status-card" aria-live="polite">
+      <div class="player-badge" id="player-badge">P1</div>
+      <div><p id="turn-label">Create a game to begin</p><small id="status-copy">Invite a friend on their own phone.</small></div>
+      <span class="sparkles" id="bonus-count">✦ 0</span>
+    </section>
 
-      <section class="board-picker" aria-label="Board style">
-        <button class="board-option active" data-board="festival" type="button">Festival</button><button class="board-option" data-board="mystery" type="button">Mystery</button><button class="board-option" data-board="makers" type="button">Makers</button><button class="board-option" data-board="getaway" type="button">Getaway</button><button class="board-option" data-board="arcade" type="button">Arcade</button><button class="board-option" data-board="studio" type="button">Studio</button>
-      </section>
+    <section class="invite-card" aria-label="Game invitation">
+      <span id="invite-copy">Start a private 1v1 game.</span>
+      <button id="share-button" type="button">Create & share</button>
+    </section>
 
-      <section class="board-section" aria-labelledby="board-title">
-        <div class="section-label"><h2 id="board-title">Your board</h2><span id="remaining">12 in play</span></div>
-        <div class="board" id="board" aria-live="polite"></div>
-      </section>
+    <section class="board-section" aria-labelledby="board-title">
+      <div class="section-label"><h2 id="board-title">Festival crew</h2><span id="remaining">6 in play</span></div>
+      <div class="board" id="board" aria-live="polite"></div>
+    </section>
 
-      <section class="chat-card" aria-labelledby="chat-title">
-        <div class="section-label"><h2 id="chat-title">Question chat</h2><div class="mini-actions"><button id="twist-button" class="twist-button" type="button">Draw a twist</button><button id="bonus-button" class="bonus-button" type="button">Trivia bonus</button></div></div>
-        <div class="chat-log" id="chat-log" aria-live="polite"></div>
-        <div id="answer-controls" class="answer-controls" hidden>
-          <button type="button" data-answer="yes">Yes</button><button type="button" data-answer="no">No</button>
-        </div>
-        <form class="ask-form" id="ask-form">
-          <input id="question-input" maxlength="74" autocomplete="off" placeholder="Ask anything yes or no…" aria-label="Your question" />
-          <button type="submit" aria-label="Send question">↑</button>
-        </form>
-        <div class="quick-questions" id="quick-questions" aria-label="Quick questions"></div>
-      </section>
+    <section class="chat-card" aria-labelledby="chat-title">
+      <div class="section-label"><h2 id="chat-title">Question chat</h2><div class="mini-actions"><button id="twist-button" type="button">Twist</button><button id="bonus-button" type="button">Trivia</button></div></div>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div id="answer-controls" class="answer-controls" hidden><button type="button" data-answer="yes">Yes</button><button type="button" data-answer="no">No</button></div>
+      <form class="ask-form" id="ask-form"><input id="question-input" maxlength="74" autocomplete="off" placeholder="Ask a yes-or-no question…" aria-label="Your question" /><button type="submit" aria-label="Send question">↑</button></form>
+    </section>
 
-      <div class="bottom-actions">
-        <button id="clue-button" class="secondary" type="button" disabled>Use bonus clue</button>
-        <button id="guess-button" class="guess-button" type="button">Make a guess</button>
-      </div>
-    </main>
+    <div class="bottom-actions"><button id="clue-button" class="secondary" type="button">Use clue</button><button id="guess-button" class="guess-button" type="button">Make a guess</button></div>
+  </main>
 
-    <dialog id="secret-dialog" class="sheet"><form method="dialog" id="secret-form"><p class="eyebrow">Keep it secret</p><h2>Player <span id="secret-player">1</span>, pick your character</h2><p class="deal-copy">Choose one, then pass the phone. Your opponent must not peek.</p><select id="secret-select" required></select><button type="submit">Lock my secret</button></form></dialog>
-    <dialog id="guess-dialog" class="sheet"><form method="dialog" id="guess-form"><button class="close" id="cancel-guess" type="button" aria-label="Close">×</button><p class="eyebrow">Big moment</p><h2>Who is Player <span id="opponent-number">2</span>?</h2><select id="guess-select" required></select><button type="submit">Lock in my guess</button></form></dialog>
-    <dialog id="trivia-dialog" class="sheet"><form method="dialog" id="trivia-form"><button class="close" id="cancel-trivia" type="button" aria-label="Close">×</button><p class="eyebrow">Bonus round</p><h2 id="trivia-question"></h2><div id="trivia-options" class="trivia-options"></div></form></dialog>
-    <dialog id="twist-dialog" class="sheet twist"><form method="dialog"><button class="close" id="close-twist" type="button" aria-label="Close">×</button><p class="eyebrow">Shake it up</p><h2>Twist card</h2><p id="twist-copy"></p></form></dialog>
-    <dialog id="winner-dialog" class="sheet winner"><form method="dialog"><p class="eyebrow">Game over</p><h2 id="winner-title"></h2><p id="winner-copy"></p><button id="play-again" type="button">Play again</button></form></dialog>
-    <script src="app.js"></script>
-  </body>
+  <dialog id="secret-dialog" class="sheet"><form method="dialog" id="secret-form"><p class="eyebrow">Eyes only</p><h2>Pick your mystery character</h2><p class="deal-copy">Your secret stays on your phone.</p><select id="secret-select" required></select><button type="submit">Lock it in</button></form></dialog>
+  <dialog id="guess-dialog" class="sheet"><form method="dialog" id="guess-form"><button class="close" id="cancel-guess" type="button" aria-label="Close">×</button><p class="eyebrow">Big moment</p><h2>Who is their character?</h2><select id="guess-select" required></select><button type="submit">Lock in my guess</button></form></dialog>
+  <dialog id="trivia-dialog" class="sheet"><form method="dialog"><button class="close" id="cancel-trivia" type="button" aria-label="Close">×</button><p class="eyebrow">Bonus round</p><h2 id="trivia-question"></h2><div id="trivia-options" class="trivia-options"></div></form></dialog>
+  <dialog id="twist-dialog" class="sheet twist"><form method="dialog"><button class="close" id="close-twist" type="button" aria-label="Close">×</button><p class="eyebrow">Shake it up</p><h2>Twist card</h2><p id="twist-copy"></p></form></dialog>
+  <dialog id="winner-dialog" class="sheet winner"><form method="dialog"><p class="eyebrow">Game over</p><h2 id="winner-title"></h2><p id="winner-copy"></p><button id="play-again" type="button">Play again</button></form></dialog>
+  <dialog id="notice-dialog" class="sheet"><form method="dialog"><button class="close" id="close-notice" type="button" aria-label="Close">×</button><p class="eyebrow">1v1 only</p><h2 id="notice-title">One game, two phones</h2><p class="deal-copy" id="notice-copy"></p></form></dialog>
+  <script src="app.js"></script>
+</body>
 </html>
