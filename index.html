@@ -22,9 +22,7 @@
       </section>
 
       <section class="board-picker" aria-label="Board style">
-        <button class="board-option active" data-board="classic" type="button">Classic</button>
-        <button class="board-option" data-board="party" type="button">Party</button>
-        <button class="board-option" data-board="date" type="button">Date night</button>
+        <button class="board-option active" data-board="festival" type="button">Festival</button><button class="board-option" data-board="mystery" type="button">Mystery</button><button class="board-option" data-board="makers" type="button">Makers</button><button class="board-option" data-board="getaway" type="button">Getaway</button><button class="board-option" data-board="arcade" type="button">Arcade</button><button class="board-option" data-board="studio" type="button">Studio</button>
       </section>
 
       <section class="board-section" aria-labelledby="board-title">
@@ -33,7 +31,7 @@
       </section>
 
       <section class="chat-card" aria-labelledby="chat-title">
-        <div class="section-label"><h2 id="chat-title">Question chat</h2><button id="bonus-button" class="bonus-button" type="button">Trivia bonus</button></div>
+        <div class="section-label"><h2 id="chat-title">Question chat</h2><div class="mini-actions"><button id="twist-button" class="twist-button" type="button">Draw a twist</button><button id="bonus-button" class="bonus-button" type="button">Trivia bonus</button></div></div>
         <div class="chat-log" id="chat-log" aria-live="polite"></div>
         <div id="answer-controls" class="answer-controls" hidden>
           <button type="button" data-answer="yes">Yes</button><button type="button" data-answer="no">No</button>
@@ -51,8 +49,10 @@
       </div>
     </main>
 
+    <dialog id="secret-dialog" class="sheet"><form method="dialog" id="secret-form"><p class="eyebrow">Keep it secret</p><h2>Player <span id="secret-player">1</span>, pick your character</h2><p class="deal-copy">Choose one, then pass the phone. Your opponent must not peek.</p><select id="secret-select" required></select><button type="submit">Lock my secret</button></form></dialog>
     <dialog id="guess-dialog" class="sheet"><form method="dialog" id="guess-form"><button class="close" id="cancel-guess" type="button" aria-label="Close">×</button><p class="eyebrow">Big moment</p><h2>Who is Player <span id="opponent-number">2</span>?</h2><select id="guess-select" required></select><button type="submit">Lock in my guess</button></form></dialog>
     <dialog id="trivia-dialog" class="sheet"><form method="dialog" id="trivia-form"><button class="close" id="cancel-trivia" type="button" aria-label="Close">×</button><p class="eyebrow">Bonus round</p><h2 id="trivia-question"></h2><div id="trivia-options" class="trivia-options"></div></form></dialog>
+    <dialog id="twist-dialog" class="sheet twist"><form method="dialog"><button class="close" id="close-twist" type="button" aria-label="Close">×</button><p class="eyebrow">Shake it up</p><h2>Twist card</h2><p id="twist-copy"></p></form></dialog>
     <dialog id="winner-dialog" class="sheet winner"><form method="dialog"><p class="eyebrow">Game over</p><h2 id="winner-title"></h2><p id="winner-copy"></p><button id="play-again" type="button">Play again</button></form></dialog>
     <script src="app.js"></script>
   </body>
