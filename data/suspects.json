@@ -1,10 +1,277 @@
 [
-  {"name":"Gemma","alibi":"Spotted fleeing a flat in Cluny Mews.","status":"active","trait":"wears round glasses","bio":"SUBJECT: Gemma, a quiet operator with a perfect alibi rehearsed too many times. LAST SEEN: Cluny Mews at first light. KNOWN ASSOCIATES: Nobody listed, which makes the empty file louder.","features":{"hair":"bob","nose":"small","jaw":"soft","glasses":true,"hat":false,"facialHair":false,"mark":"beauty"}},
-  {"name":"Brendan Alper","alibi":"Laying low since his Canterbury Academy days.","status":"active","trait":"has a narrow nose and moustache","bio":"SUBJECT: Brendan Alper, polished manners and an unfinished debt. LAST SEEN: A Canterbury tea room after closing. KNOWN ASSOCIATES: Former academy men who deny everything.","features":{"hair":"parted","nose":"narrow","jaw":"square","glasses":false,"hat":false,"facialHair":"moustache","mark":"none"}},
-  {"name":"Kyle Tucker","alibi":"Smuggled in on a freighter from Bermuda.","status":"active","trait":"wears a wide-brim hat","bio":"SUBJECT: Kyle Tucker, dockside muscle with salt still on his coat. LAST SEEN: Pier Nine, watching the tide. KNOWN ASSOCIATES: The Bermuda freight crew.","features":{"hair":"short","nose":"wide","jaw":"round","glasses":false,"hat":true,"facialHair":"beard","mark":"scar"}},
-  {"name":"James Kirimi","alibi":"Mastermind behind the UK transport operations.","status":"active","trait":"has a long jaw and angular glasses","bio":"SUBJECT: James Kirimi, a logistics man who knows every route but his own. LAST SEEN: The control room. KNOWN ASSOCIATES: Drivers who speak only in timetables.","features":{"hair":"close","nose":"long","jaw":"long","glasses":true,"hat":false,"facialHair":false,"mark":"none"}},
-  {"name":"Stanley","alibi":"Overheard plotting at a dinner gathering.","status":"active","trait":"has bushy brows and a cleft chin","bio":"SUBJECT: Stanley, a dinner guest who stayed after the lights went out. LAST SEEN: The private dining room. KNOWN ASSOCIATES: A table of nervous witnesses.","features":{"hair":"curly","nose":"hooked","jaw":"cleft","glasses":false,"hat":false,"facialHair":"goatee","mark":"none"}},
-  {"name":"Mama","alibi":"The undisputed matriarch of the syndicate.","status":"active","trait":"wears a cloche hat and pearl pin","bio":"SUBJECT: Mama, the voice every room falls silent to hear. LAST SEEN: At the head of the syndicate table. KNOWN ASSOCIATES: Everyone, officially no one.","features":{"hair":"wave","nose":"small","jaw":"heart","glasses":false,"hat":true,"facialHair":false,"mark":"pin"}},
-  {"name":"Marley","alibi":"Munchkin cat burglar, highly elusive.","status":"active","trait":"has pointed ears and whisker marks","bio":"SUBJECT: Marley, a tiny specialist in impossible entry points. LAST SEEN: A rooftop ledge above Cluny Mews. KNOWN ASSOCIATES: Dilly, usually one step behind.","features":{"hair":"ears","nose":"button","jaw":"soft","glasses":false,"hat":false,"facialHair":false,"mark":"whiskers"}},
-  {"name":"Dilly","alibi":"Munchkin associate, partner in crime.","status":"active","trait":"has floppy ears and a broad nose","bio":"SUBJECT: Dilly, the lookout with a habit of humming at crime scenes. LAST SEEN: Near the service alley. KNOWN ASSOCIATES: Marley, their partner in every caper.","features":{"hair":"floppy","nose":"wide","jaw":"round","glasses":false,"hat":false,"facialHair":false,"mark":"freckles"}}
+  {
+    "name": "The Femme Fatale",
+    "trait": "round glasses · velvet bob",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": true,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Corrupt Mayor",
+    "trait": "full beard · sharp suit",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": "beard"
+    }
+  },
+  {
+    "name": "The Dockside Runner",
+    "trait": "newsboy cap · scar",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Railway Baron",
+    "trait": "neat mustache · dark tie",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": "moustache"
+    }
+  },
+  {
+    "name": "The Club Proprietor",
+    "trait": "silver curls · signet ring",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": "goatee"
+    }
+  },
+  {
+    "name": "The Syndicate Matriarch",
+    "trait": "cloche hat · pearl pin",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Cat Burglar",
+    "trait": "copper hair · beauty mark",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Flower Girl",
+    "trait": "freckles · wool collar",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Cabaret Singer",
+    "trait": "cat-eye frames · gloves",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": true,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The War Hero",
+    "trait": "wide lapels · calm gaze",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Socialite",
+    "trait": "red lip · silk scarf",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Newspaper Man",
+    "trait": "wire frames · pipe",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": true,
+      "hat": false,
+      "facialHair": "moustache"
+    }
+  },
+  {
+    "name": "The Starlet",
+    "trait": "platinum waves · brooch",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Museum Guard",
+    "trait": "fedora · stern jaw",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Chorus Girl",
+    "trait": "soft curls · fur collar",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Bookmaker",
+    "trait": "beard · cigarette case",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=700&q=88&sat=-20",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": "beard"
+    }
+  },
+  {
+    "name": "The Copy Editor",
+    "trait": "round glasses · ink-stained",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": true,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Piano Tuner",
+    "trait": "close crop · bow tie",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": "moustache"
+    }
+  },
+  {
+    "name": "The River Artist",
+    "trait": "beret · sharp cheekbones",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Hotelier",
+    "trait": "thick brows · trench coat",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Telephone Operator",
+    "trait": "auburn wave · locket",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The City Clerk",
+    "trait": "rimless glasses · pinstripe",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": true,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Jewel Thief",
+    "trait": "dark bob · ruby earrings",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": false,
+      "facialHair": false
+    }
+  },
+  {
+    "name": "The Station Porter",
+    "trait": "flat cap · five o'clock shadow",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=700&q=88&sat=-35",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": "beard"
+    }
+  },
+  {
+    "name": "The Widow",
+    "trait": "veiled hat · composed smile",
+    "alibi": "CLASSIFIED — the case file is under seal.",
+    "portrait": "https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=700&q=88",
+    "features": {
+      "glasses": false,
+      "hat": true,
+      "facialHair": false
+    }
+  }
 ]
