@@ -1,9 +1,16 @@
 const ttlSeconds = 60 * 60 * 12;
+const trivia = [
+  { question: 'Which animal can fly?', options: ['Parrot', 'Bulldog', 'Kitten'], answer: 'Parrot' },
+  { question: 'How many legs does a dog have?', options: ['2', '4', '6'], answer: '4' },
+  { question: 'Which animal says meow?', options: ['Cat', 'Parrot', 'Dog'], answer: 'Cat' },
+];
 const characterInfo = {
-  Marley: { emoji: '🐱', description: 'munchkin kitten' },
-  Dilly: { emoji: '🐱', description: 'munchkin kitten' },
-  Bruno: { emoji: '🐶', description: 'grumpy bulldog' },
-  Pico: { emoji: '🦜', description: 'sneaky parrot' },
+  Marley: { emoji: '🐱', description: 'munchkin kitten' }, Dilly: { emoji: '🐱', description: 'munchkin kitten' }, Bruno: { emoji: '🐶', description: 'grumpy bulldog' }, Pico: { emoji: '🦜', description: 'sneaky parrot' },
+  Luna: { emoji: '🐱', description: 'moon-eyed cat' }, Otis: { emoji: '🐶', description: 'beagle' }, Kiwi: { emoji: '🦜', description: 'green parrot' }, Nala: { emoji: '🐱', description: 'calico cat' },
+  Winston: { emoji: '🐶', description: 'sleepy pug' }, Cleo: { emoji: '🐱', description: 'black cat' }, Rio: { emoji: '🦜', description: 'macaw' }, Mabel: { emoji: '🐶', description: 'corgi' },
+  Mochi: { emoji: '🐱', description: 'fluffy kitten' }, Scout: { emoji: '🐶', description: 'terrier' }, Sunny: { emoji: '🦜', description: 'cockatiel' }, Pepper: { emoji: '🐱', description: 'tabby cat' },
+  Archie: { emoji: '🐶', description: 'dachshund' }, Zazu: { emoji: '🦜', description: 'blue parrot' }, Olive: { emoji: '🐱', description: 'ginger cat' }, Teddy: { emoji: '🐶', description: 'golden pup' },
+  Pippin: { emoji: '🐱', description: 'white kitten' }, Biscuit: { emoji: '🐶', description: 'basset hound' }, Jasper: { emoji: '🦜', description: 'red parrot' }, Suki: { emoji: '🐱', description: 'silver cat' },
 };
 const characters = new Set(Object.keys(characterInfo));
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
@@ -24,6 +31,7 @@ async function save(game) { await redis('set', gameKey(game.id), JSON.stringify(
 function playerFor(game, deviceId) { return Object.entries(game.players).find(([, value]) => value === deviceId)?.[0]; }
 function view(game, player) {
   const copy = structuredClone(game);
+  if (copy.trivia?.answer) delete copy.trivia.answer;
   copy.joinedCount = game.players[2] ? 2 : 1;
   copy.ready = Boolean(game.startedAt);
   if (player) delete copy.secrets[player === '1' ? '2' : '1'];
@@ -43,7 +51,7 @@ export default async function handler(req, res) {
     const { action, gameId, deviceId, payload = {} } = req.body || {};
     if (!deviceId) reject('This phone needs a device identity. Reload and try again.');
     if (action === 'create') {
-      const game = { id: id(), players: { 1: deviceId, 2: null }, secrets: {}, eliminated: { 1: [], 2: [] }, currentPlayer: null, pendingQuestion: null, winner: null, startedAt: null, messages: [message('Game created. Invite one friend to join.')] };
+      const game = { id: id(), players: { 1: deviceId, 2: null }, secrets: {}, eliminated: { 1: [], 2: [] }, currentPlayer: null, pendingQuestion: null, trivia: null, winner: null, startedAt: null, messages: [message('Game created. Invite one friend to join.')] };
       await save(game);
       return res.status(201).json(view(game, '1'));
     }
@@ -92,6 +100,17 @@ export default async function handler(req, res) {
         game.messages.push(message(`Player ${me}: ${payload.answer === 'yes' ? 'Yes' : 'No'}`));
         game.pendingQuestion = null;
         game.currentPlayer = me;
+      } else if (action === 'twist') {
+        if (!game.startedAt || game.currentPlayer !== me || game.pendingQuestion || game.trivia) reject('Wait for your turn to send a Twist.');
+        const challenge = trivia[Math.floor(Math.random() * trivia.length)];
+        game.trivia = { ...challenge, sender: me, recipient: other };
+        game.messages.push(message(`Player ${me} sent Player ${other} a Twist challenge!`));
+      } else if (action === 'triviaAnswer') {
+        if (!game.trivia || game.trivia.recipient !== me || !game.trivia.options.includes(payload.answer)) reject('There is no Twist challenge for you.');
+        const correct = payload.answer === game.trivia.answer;
+        game.messages.push(message(`Player ${me} answered the Twist ${correct ? 'correctly!' : 'incorrectly.'}`));
+        game.trivia = null;
+        if (!correct) game.currentPlayer = other;
       } else if (action === 'eliminate') {
         if (!game.startedAt || game.currentPlayer !== me || game.pendingQuestion || !characters.has(payload.name)) reject('Wait for your turn to update your board.');
         const eliminated = new Set(game.eliminated[me]);
