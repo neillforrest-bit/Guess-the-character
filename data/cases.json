@@ -1,0 +1,53 @@
+[
+  {
+    "id":"cluny-mews",
+    "title":"The Cluny Mews Silence",
+    "victim":{"name":"Edwin Vale","occupation":"night property broker"},
+    "scene":"Rain swept Cluny Mews at 11:40 p.m. when Edwin Vale was found beneath the brass stairwell lamp, a single blow to the temple delivered with the building’s missing iron letter opener. The lock had not been forced; the killer was expected.",
+    "culprit":"Gemma",
+    "notes":{
+      "Gemma":{"alibi":"Said she was sorting keys in the foyer; the porter saw the glint of her round glasses on the upper landing.","relationship":"Vale had threatened to expose her forged tenancy papers."},
+      "Brendan Alper":{"alibi":"Signed for tea at the Canterbury Club before the rain began.","relationship":"A former schoolmate who owed Vale a modest loan."},
+      "Kyle Tucker":{"alibi":"His wide-brim hat was dripping at Pier Nine, where two dockhands saw him unload crates.","relationship":"Vale had brokered one of his freight contracts."},
+      "James Kirimi":{"alibi":"Logged a delayed coach departure from the transport control room.","relationship":"A client whose routes Vale managed."},
+      "Stanley":{"alibi":"Was still seated at the dinner gathering across town.","relationship":"A neighbor who disliked Vale’s parties."},
+      "Mama":{"alibi":"Held court at a syndicate supper until midnight.","relationship":"Vale once rented her a warehouse."},
+      "Marley":{"alibi":"Was seen on a nearby roof after the bell rang.","relationship":"Had been caught trespassing in Vale’s flats."},
+      "Dilly":{"alibi":"Waited in the service alley with the delivery boys.","relationship":"Marley’s lookout and no friend of Vale."}
+    }
+  },
+  {
+    "id":"last-stop-ashdown",
+    "title":"Last Stop at Ashdown",
+    "victim":{"name":"Rosa Bell","occupation":"cinema usher"},
+    "scene":"At 10:15 p.m., after the final matinee emptied, Rosa Bell lay behind the velvet curtain of the Ashdown Picture House. A projector-reel weight had struck her skull; dust on the floor showed one set of polished shoe prints leading toward the timetable office.",
+    "culprit":"James Kirimi",
+    "notes":{
+      "Gemma":{"alibi":"Bought a ticket at the front desk; her round glasses were noted by the cashier.","relationship":"Bell had once let her into a sold-out show."},
+      "Brendan Alper":{"alibi":"Was seen crossing the Canterbury arcade with his moustache tucked behind a scarf.","relationship":"Bell rejected his invitation to the premiere."},
+      "Kyle Tucker":{"alibi":"The harbour watchman recognized his wide-brim hat at the freighter gate.","relationship":"Bell had no known business with him."},
+      "James Kirimi":{"alibi":"Claimed he was checking bus schedules, but no service ran from the timetable office that night.","relationship":"Bell had discovered his forged transport vouchers."},
+      "Stanley":{"alibi":"A waiter placed him at the dinner gathering through dessert.","relationship":"Bell was his cousin’s former roommate."},
+      "Mama":{"alibi":"Received three callers at her supper table during the time of death.","relationship":"Bell sold her old cinema posters."},
+      "Marley":{"alibi":"A projectionist saw the pointed-eared figure near the roof vent before the show.","relationship":"Bell had fed Marley scraps after closing."},
+      "Dilly":{"alibi":"The ushering staff saw Dilly by the alley exit when the curtain fell.","relationship":"Bell knew Dilly through Marley."}
+    }
+  },
+  {
+    "id":"pearl-pin",
+    "title":"The Pearl Pin Affair",
+    "victim":{"name":"Felix Crowe","occupation":"jewellery appraiser"},
+    "scene":"At 1:05 a.m. in the locked counting room of Crowe & Sons, Felix Crowe was found facedown beside an open safe. A pearl pin rested under his hand, while the only window stood latched from inside and the watchman heard a familiar voice leave by the front door.",
+    "culprit":"Mama",
+    "notes":{
+      "Gemma":{"alibi":"The night tram conductor recalled her round glasses in the rear carriage.","relationship":"Crowe had appraised a brooch for her."},
+      "Brendan Alper":{"alibi":"His academy friends saw him leave the Canterbury Club together.","relationship":"Crowe had refused to value his family ring."},
+      "Kyle Tucker":{"alibi":"Was unloading a Bermuda crate beneath the wide brim of his hat.","relationship":"Crowe authenticated cargo jewellery for him."},
+      "James Kirimi":{"alibi":"A dispatcher called him from the transport office at one o’clock.","relationship":"Crowe supplied a collector on his route."},
+      "Stanley":{"alibi":"The dinner host heard him make a toast at midnight and remain for coffee.","relationship":"Crowe had been invited to his gathering."},
+      "Mama":{"alibi":"Said she never left supper, yet the pearl pin at the scene matches the one fixed to her cloche hat.","relationship":"Crowe was about to testify about her uncut gems."},
+      "Marley":{"alibi":"A rooftop gardener saw Marley chasing a pigeon after midnight.","relationship":"Crowe kept Marley out of his shop windows."},
+      "Dilly":{"alibi":"The service porter gave Dilly directions to the alley at 12:50.","relationship":"Dilly had never met Crowe directly."}
+    }
+  }
+]
