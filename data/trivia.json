@@ -1,0 +1,5 @@
+[
+  { "question": "Which chess opening begins 1.e4 e5 2.Nf3 Nc6 3.Bb5?", "options": ["Sicilian Defence", "Ruy Lopez", "Queen's Gambit"], "answer": "Ruy Lopez" },
+  { "question": "Which 1970s Jamaican artist recorded the album Exodus?", "options": ["Bob Marley", "Peter Tosh", "Jimmy Cliff"], "answer": "Bob Marley" },
+  { "question": "Which film movement is known for hard shadows and morally ambiguous detectives?", "options": ["Film noir", "French New Wave", "Italian neorealism"], "answer": "Film noir" }
+]
