@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     } else if (action === 'answer') {
       if (!game.pendingQuestion || game.pendingQuestion.asker !== other) reject('There is no question for you.');
       game.messages.push(message(`P${me}: ${payload.answer === 'yes' ? 'Yes!' : 'Nope.'}`, 'answer')); const asker = game.pendingQuestion.asker; game.pendingQuestion = null;
-      if (game.encorePlayer === asker) { game.messages.push(message(`Encore! P${asker} asks once more.`, 'system')); game.encorePlayer = null; } else { game.currentPlayer = other; game.triviaUsed[other] = false; game.twistUsed[other] = false; }
+      if (game.encorePlayer === asker) { game.messages.push(message(`Encore! P${asker} asks once more.`, 'system')); game.encorePlayer = null; } else { game.currentPlayer = me; game.triviaUsed[me] = false; game.twistUsed[me] = false; }
     } else if (action === 'eliminate') {
       if (game.currentPlayer !== me || game.pendingQuestion) reject('Wait for your turn.');
       const list = new Set(game.eliminated[me]); list.has(payload.name) ? list.delete(payload.name) : list.add(payload.name); game.eliminated[me] = [...list];
