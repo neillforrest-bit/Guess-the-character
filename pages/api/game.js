@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     const { action, gameId, deviceId, payload = {} } = req.body || {};
     if (!deviceId) reject('This phone needs a device identity. Reload and try again.');
     if (action === 'create') {
-      const game = { id: id(), players: { 1: deviceId, 2: null }, secrets: {}, eliminated: { 1: [], 2: [] }, currentPlayer: null, pendingQuestion: null, trivia: null, winner: null, startedAt: null, messages: [message('Game created. Invite one friend to join.')] };
+      const game = { id: id(), players: { 1: deviceId, 2: null }, secrets: {}, eliminated: { 1: [], 2: [] }, currentPlayer: null, pendingQuestion: null, trivia: null, reveals: [], winner: null, startedAt: null, messages: [message('Game created. Invite one friend to join.')] };
       await save(game);
       return res.status(201).json(view(game, '1'));
     }
@@ -109,8 +109,13 @@ export default async function handler(req, res) {
         if (!game.trivia || game.trivia.recipient !== me || !game.trivia.options.includes(payload.answer)) reject('There is no Twist challenge for you.');
         const correct = payload.answer === game.trivia.answer;
         game.messages.push(message(`Player ${me} answered the Twist ${correct ? 'correctly!' : 'incorrectly.'}`));
+        if (!correct) {
+          const truth = characterInfo[game.secrets[me]].description;
+          game.reveals.push(message(`Polygraph reveal: Player ${me}'s suspect is ${truth}.`));
+          game.messages.push(message(`Polygraph reveal: their suspect is ${truth}.`));
+          game.currentPlayer = other;
+        }
         game.trivia = null;
-        if (!correct) game.currentPlayer = other;
       } else if (action === 'eliminate') {
         if (!game.startedAt || game.currentPlayer !== me || game.pendingQuestion || !characters.has(payload.name)) reject('Wait for your turn to update your board.');
         const eliminated = new Set(game.eliminated[me]);

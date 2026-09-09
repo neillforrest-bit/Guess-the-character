@@ -1,0 +1,2 @@
+@import "tailwindcss";
+:root{background:#050505;color:#fff}*{box-sizing:border-box}body{margin:0;min-width:320px;background:#050505}.card{transform-style:preserve-3d}.stamp{letter-spacing:.18em;text-shadow:0 2px #000}button{touch-action:manipulation}dialog::backdrop{background:#000c}
