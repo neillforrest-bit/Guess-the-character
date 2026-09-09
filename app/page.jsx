@@ -1,6 +1,131 @@
 'use client';
-import {AnimatePresence,motion}from'framer-motion';import{useEffect,useMemo,useRef,useState}from'react';import suspects from'../data/suspects.json';
-const deviceId=()=>typeof window==='undefined'?'':localStorage.blackBookDevice||(localStorage.blackBookDevice=crypto.randomUUID());
-async function request(action,gameId,payload={}){const response=await fetch('/api/game',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,gameId,deviceId:deviceId(),payload})}),data=await response.json();if(!response.ok)throw Object.assign(Error(data.error),{status:response.status});return data}
-function Mugshot({suspect}){const f=suspect.features;const hair={bob:'M22 28Q20 8 40 8Q60 8 58 29L53 23Q40 28 27 23z',parted:'M23 25Q29 7 41 10Q53 9 58 27L43 19L36 27z',short:'M22 24Q29 9 40 10Q53 10 58 24L54 20L27 20z',close:'M23 22Q30 10 40 10Q51 10 57 22z',curly:'M22 25q-3-9 6-10q2-8 10-4q8-4 11 4q9 1 7 10z',wave:'M22 25Q29 8 38 14Q47 6 58 24L53 22Q44 25 37 20Q30 25 25 22z',ears:'M24 27L18 12l13 7Q40 9 49 19l13-7l-6 15z',floppy:'M25 23Q17 18 16 31Q21 36 27 28M55 23Q63 18 64 31Q59 36 53 28'}[f.hair];const nose={small:'M39 30l-3 10 7 1',narrow:'M40 29l-2 12 4 0',wide:'M36 30l-5 11 12 1-3-12',long:'M40 28l-3 15 7 1',hooked:'M41 29l2 10-6 4',button:'M37 38q3-4 6 0q-3 4-6 0'}[f.nose];return <svg viewBox="0 0 80 74" aria-label={suspect.name+" mugshot"} className="mugshot"><rect width="80" height="74" fill="#d4d0c4"/><path d="M0 16h80M0 31h80M0 46h80M0 61h80M8 0v74M72 0v74" stroke="#858178" strokeWidth=".6"/><path d="M20 66V47Q16 34 23 19Q31 8 40 8Q49 8 57 19Q64 34 59 47V66" fill="#121212"/><ellipse cx="40" cy="31" rx="16" ry="19" fill="#e9e6dc"/><path d={hair} fill="#151515" stroke="#151515" strokeWidth="2"/>{f.hat?<g><path d="M17 23Q21 4 40 4Q59 4 63 23l-7 2H24z" fill="#101010"/><path d="M14 24h52v5H14z" fill="#171717"/></g>:null}<path d={nose} fill="none" stroke="#181818" strokeWidth="1.5"/><path d="M31 29h6M43 29h6" stroke="#181818" strokeWidth="2"/>{f.glasses?<g><rect x="26" y="25" width="12" height="9" rx="2" fill="none" stroke="#111" strokeWidth="1.5"/><rect x="42" y="25" width="12" height="9" rx="2" fill="none" stroke="#111" strokeWidth="1.5"/><path d="M38 29h4" stroke="#111"/></g>:null}{f.facialHair==='moustache'?<path d="M31 44q5-5 9 0q4-5 9 0q-5 4-9 1q-4 3-9-1" fill="#111"/>:null}{f.facialHair==='beard'?<path d="M28 41q12 16 24 0q-2 16-12 17q-10-1-12-17" fill="#161616"/>:null}{f.facialHair==='goatee'?<path d="M35 46l5 9 5-9z" fill="#111"/>:null}{f.mark==='beauty'?<circle cx="50" cy="39" r="1.2"/>:null}{f.mark==='scar'?<path d="M52 34l-4 9" stroke="#111" strokeWidth="1.2"/>:null}{f.mark==='pin'?<circle cx="57" cy="44" r="2" fill="#eee" stroke="#111"/>:null}{f.mark==='whiskers'?<path d="M20 39l12 2M20 44l12-1M60 39L48 41M60 44l-12-1" stroke="#111"/>:null}{f.mark==='freckles'?<path d="M29 38h1m4 2h1m15-2h1m-4 2h1" stroke="#111" strokeWidth="2"/>:null}</svg>}
-export default function Home(){const[state,setState]=useState(),[player,setPlayer]=useState(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[secret,setSecret]=useState(suspects[0].name),[question,setQuestion]=useState(''),[spotInfo,setSpotInfo]=useState(false),[guessOpen,setGuessOpen]=useState(false),[dismissedReward,setDismissedReward]=useState(null),[turnAlert,setTurnAlert]=useState(false),[dossier,setDossier]=useState(null);const previousPlayer=useRef();const gameId=useMemo(()=>typeof window==='undefined'?null:new URLSearchParams(location.search).get('game'),[]);const sync=async(action,payload={})=>{if(busy)return;setBusy(true);try{let data;for(let i=0;i<3;i++)try{data=await request(action,state?.id||gameId,payload);break}catch(error){if(error.status!==409||i===2)throw error;await new Promise(resolve=>setTimeout(resolve,250))}setState(data.game);setPlayer(data.player);return data}catch(error){setError(error.message)}finally{setBusy(false)}};useEffect(()=>{if(gameId)sync('join')},[]);useEffect(()=>{if(state?.startedAt&&state.currentPlayer===player&&previousPlayer.current&&previousPlayer.current!==player){setTurnAlert(true);const timer=setTimeout(()=>setTurnAlert(false),2400);return()=>clearTimeout(timer)}previousPlayer.current=state?.currentPlayer},[state?.currentPlayer,state?.startedAt,player]);useEffect(()=>{const timer=setInterval(async()=>{if(state){try{const data=await request('state',state.id);setState(data.game);setPlayer(data.player)}catch{}}},900);return()=>clearInterval(timer)},[state?.id]);const joined=state?.joinedCount||0,started=!!state?.startedAt,locked=!!state?.selfLocked,turn=started&&state?.currentPlayer===player&&!state?.pendingQuestion&&!state?.spotTrivia&&!state?.winner,secretSuspect=suspects.find(s=>s.name===state?.secrets?.[player]);const joinLink=state?.id&&typeof window!=='undefined'?`${location.origin}${location.pathname}?game=${state.id}`:'';const create=async()=>{const data=state?null:await sync('create'),id=data?.game.id||state?.id;if(!id)return;const url=new URL(location);url.searchParams.set('game',id);window.history.replaceState({},'',url);if(navigator.share)await navigator.share({title:'The Black Book',text:'Join my detective case.',url:url.href});else{await navigator.clipboard.writeText(url.href);setError('Case link copied. Send it to your opponent.')}};return <main className="case"><header className="top"><div><p>PRIVATE CASE · 1V1</p><h1>The Black Book</h1></div><b>{!started?'LOBBY':state?.winner?'CASE CLOSED':turn?'YOUR TURN':'THEIR TURN'}</b></header>{!state?<section className="landing"><h2>A two-detective deduction game.</h2><p>Choose a hidden suspect, interrogate your opponent, clear the innocent, then name the culprit.</p><button onClick={create}>OPEN A CASE</button></section>:!started?<section className="lobby"><div className="case-count">{joined}/2 DETECTIVES CONNECTED</div><h2>{joined<2?'Waiting for your second detective':'Choose your hidden suspect'}</h2><p>{joined<2?'Share this case link. Both detectives must arrive before either can lock a suspect.':locked?'Your suspect is locked. Waiting for opponent…':'Your choice stays private.'}</p><label className="join-link">JOIN LINK<input readOnly value={joinLink} onFocus={event=>event.target.select()} onClick={event=>navigator.clipboard?.writeText(event.target.value)}/></label>{joined===2&&!locked&&<form onSubmit={event=>{event.preventDefault();sync('secret',{secret})}}><div className="picker">{suspects.map((suspect,index)=><button type="button" key={suspect.name} onClick={()=>setSecret(suspect.name)} className={secret===suspect.name?'chosen':''}><Mugshot suspect={suspect}/><span>{suspect.name.split(' ')[0]}</span></button>)}</div><button disabled={busy} className="ink">{busy?'LOCKING…':'LOCK SUSPECT'}</button></form>}</section>:<><section className="secret"><Mugshot suspect={secretSuspect}/><div><small>YOUR HIDDEN SUSPECT</small><strong>{secretSuspect?.name}</strong><span>{secretSuspect?.alibi}</span></div>{state.reveal&&<em>{state.reveal}</em>}</section><section className="board">{suspects.map((suspect,index)=>{const cleared=state.eliminated[player]?.includes(suspect.name);return <motion.div key={suspect.name} animate={cleared?{opacity:.22,scale:.8,rotate:-4}:{y:[0,-1,0]}} transition={cleared?{duration:.18}:{duration:4,repeat:Infinity,delay:index*.06}} className={cleared?'card cleared':'card'}><button type="button" className="eliminate" onClick={()=>sync('eliminate',{name:suspect.name})} aria-label={`Mark ${suspect.name} cleared`}><span className="case-label">CASE FILE</span><Mugshot suspect={suspect}/><b>{suspect.name.split(' ')[0]}</b><small>{suspect.trait}</small></button><button type="button" className="dossier-button" onClick={()=>setDossier(suspect)} aria-label={`Open ${suspect.name} case file`}>FILE</button><AnimatePresence>{cleared&&<motion.i initial={{scale:1.8,opacity:0}} animate={{scale:1,opacity:1}} className="stamp">CLEARED</motion.i>}</AnimatePresence></motion.div>})}</section><section className={state.pendingQuestion&&state.pendingQuestion.asker!==player?'chat alert':turnAlert?'chat alert':'chat'}><div className="chat-head">{state.pendingQuestion&&state.pendingQuestion.asker!==player?'OPPONENT QUESTION — ANSWER NOW':turnAlert?'YOUR TURN — MAKE IT COUNT':'INTERROGATION'}</div><div className="thread">{state.messages.map((message,index)=><p key={index} className={message.type}>{message.type==='question'?`Q · ${message.text}`:`A · ${message.text}`}</p>)}</div>{state.pendingQuestion&&state.pendingQuestion.asker!==player?<div className="answers"><button onClick={()=>sync('answer',{answer:'yes'})}>YES</button><button onClick={()=>sync('answer',{answer:'no'})}>NO</button></div>:<form onSubmit={event=>{event.preventDefault();if(question){sync('ask',{question});setQuestion('')}}}><input disabled={!turn} value={question} onChange={event=>setQuestion(event.target.value)} placeholder="Ask a yes / no question"/><button disabled={!turn}>ASK</button></form>}</section><div className="actions"><button disabled={!turn||state.spotTriviaUsed} onClick={()=>setSpotInfo(true)} className="poly">{state.spotTriviaUsed?'SPOT TRIVIA USED':'SPOT TRIVIA · 1×'}</button><button disabled={!turn} onClick={()=>setGuessOpen(true)} className="guess">MAKE A GUESS</button></div></>}{dossier&&<dialog open className="modal dossier"><button className="dossier-close" onClick={()=>setDossier(null)} aria-label="Close case file">×</button><small>CASE FILE · SHARED EVIDENCE</small><Mugshot suspect={dossier}/><h2>{dossier.name}</h2><p className="dossier-traits">VISIBLE TRAITS: {dossier.trait}.</p><p className="dossier-alibi">ALIBI: {dossier.alibi}</p><p>{dossier.bio}</p><button onClick={()=>setDossier(null)}>RETURN TO BOARD</button></dialog>}{state?.spotTrivia&&<dialog open className="modal"><small>SPOT TRIVIA · FIRST CORRECT WINS</small><h2>{state.spotTrivia.question}</h2>{state.spotTrivia.options.map(answer=><button disabled={state.spotTrivia.attempted.includes(player)} key={answer} onClick={()=>sync('spotTriviaAnswer',{answer})}>{answer}</button>)}<p>{state.spotTrivia.attempted.includes(player)?'You missed. Your opponent can still answer.':'First correct answer earns a random reward.'}</p></dialog>}{state?.reward&&state.reward.at!==dismissedReward&&<dialog open className="modal"><small>SPOT TRIVIA REWARD</small><h2>{state.reward.winner===player?'You won!':'Opponent won!'}</h2><p>{state.reward.type==='clue'?'Free Clue: a truth about the hidden suspect was revealed.':state.reward.type==='extraTurn'?'Extra Turn: the winner keeps control of the case.':'Mute: the opponent loses their next question.'}</p><button onClick={()=>setDismissedReward(state.reward.at)}>CONTINUE</button></dialog>}{spotInfo&&<dialog open className="modal"><small>ONE USE PER MATCH</small><h2>Spot Trivia</h2><p>Pauses the case for both detectives. First correct answer wins a Free Clue, Extra Turn, or Mute.</p><button onClick={()=>{setSpotInfo(false);sync('spotTrivia')}}>START SPOT TRIVIA</button><button onClick={()=>setSpotInfo(false)}>CANCEL</button></dialog>}{guessOpen&&<dialog open className="modal"><small>FINAL ACCUSATION</small><h2>Name the hidden suspect</h2>{suspects.map(suspect=><button key={suspect.name} onClick={()=>{setGuessOpen(false);sync('guess',{name:suspect.name})}}>{suspect.name}</button>)}<button onClick={()=>setGuessOpen(false)}>CANCEL</button></dialog>}{error&&<button className="toast" onClick={()=>setError('')}>{error}</button>}</main>}
+
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import suspects from '../data/suspects.json';
+import trivia from '../data/trivia.json';
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const pick = (items) => items[Math.floor(Math.random() * items.length)];
+
+function Portrait({ suspect, priority = false }) {
+  return <div className="portrait" role="img" aria-label={`${suspect.name} portrait`} style={{ backgroundImage: `url("${suspect.portrait}")` }}>
+    <span className="portrait-flare" />
+    {priority && <span className="portrait-id">CONFIDENTIAL</span>}
+  </div>;
+}
+
+export default function Home() {
+  const cpuSecret = useMemo(() => pick(suspects), []);
+  const [messages, setMessages] = useState([{ type: 'system', text: 'Case opened. The machine has selected a suspect.' }]);
+  const [question, setQuestion] = useState('');
+  const [cleared, setCleared] = useState([]);
+  const [turn, setTurn] = useState('player');
+  const [thinking, setThinking] = useState(false);
+  const [triviaOpen, setTriviaOpen] = useState(false);
+  const [triviaUsed, setTriviaUsed] = useState(false);
+  const [activeTrivia, setActiveTrivia] = useState(null);
+  const [reward, setReward] = useState(null);
+  const [extraTurn, setExtraTurn] = useState(false);
+  const [muteCpu, setMuteCpu] = useState(false);
+  const [guessOpen, setGuessOpen] = useState(false);
+  const [result, setResult] = useState(null);
+  const timers = useRef([]);
+  const append = (message) => setMessages((history) => [...history, { id: crypto.randomUUID(), ...message }]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  const answerFor = (text) => {
+    const words = text.toLowerCase();
+    if (words.includes('glass')) return cpuSecret.features.glasses ? 'Yes.' : 'No.';
+    if (words.includes('hat') || words.includes('cap')) return cpuSecret.features.hat ? 'Yes.' : 'No.';
+    if (words.includes('beard') || words.includes('mustache') || words.includes('moustache')) return cpuSecret.features.facialHair ? 'Yes.' : 'No.';
+    if (words.includes('name')) return 'The file is sealed. Ask about a visible characteristic.';
+    return pick(['Yes.', 'No.', 'The evidence is inconclusive. Ask a more specific question.']);
+  };
+
+  const finishCpuTurn = () => {
+    if (muteCpu) {
+      setMuteCpu(false);
+      setTurn('player');
+      append({ type: 'system', text: 'MUTE EXECUTED — the machine forfeits its turn.' });
+      return;
+    }
+    setTurn('player');
+    append({ type: 'system', text: 'The machine has considered the evidence. Your turn.' });
+  };
+
+  const ask = async (event) => {
+    event.preventDefault();
+    const text = question.trim();
+    if (!text || turn !== 'player' || thinking || result) return;
+    setQuestion('');
+    setThinking(true);
+    append({ type: 'question', text });
+    await wait(1500);
+    append({ type: 'answer', text: answerFor(text) });
+    setThinking(false);
+    if (extraTurn) {
+      setExtraTurn(false);
+      append({ type: 'system', text: 'EXTRA TURN EXECUTED — ask again immediately.' });
+      return;
+    }
+    setTurn('cpu');
+    const timer = setTimeout(finishCpuTurn, 650);
+    timers.current.push(timer);
+  };
+
+  const startTrivia = () => {
+    setTriviaUsed(true);
+    setTriviaOpen(true);
+    setActiveTrivia(pick(trivia));
+  };
+
+  const award = () => {
+    const type = pick(['clue', 'extra', 'mute']);
+    if (type === 'clue') {
+      const candidates = suspects.filter((suspect) => suspect.name !== cpuSecret.name && !cleared.includes(suspect.name));
+      const suspect = pick(candidates);
+      if (suspect) setCleared((list) => [...list, suspect.name]);
+      setReward({ type, detail: suspect ? `${suspect.name} has been stamped CLEARED.` : 'Every incorrect file is already cleared.' });
+    }
+    if (type === 'extra') {
+      setExtraTurn(true);
+      setReward({ type, detail: 'Your next answer will not end your turn.' });
+    }
+    if (type === 'mute') {
+      setMuteCpu(true);
+      setReward({ type, detail: 'The machine will forfeit its next turn.' });
+    }
+    append({ type: 'system', text: 'WIRE INTERCEPT RESOLVED — reward issued.' });
+  };
+
+  const answerTrivia = (answer) => {
+    if (answer !== activeTrivia.answer) {
+      setTriviaOpen(false);
+      append({ type: 'system', text: 'WIRE INTERCEPT LOST — no reward this time.' });
+      return;
+    }
+    setTriviaOpen(false);
+    award();
+  };
+
+  const makeGuess = (name) => {
+    const won = name === cpuSecret.name;
+    setResult(won ? { won, name } : { won, name, culprit: cpuSecret.name });
+    setGuessOpen(false);
+    append({ type: 'system', text: won ? 'CASE CLOSED — culprit identified.' : 'CASE CLOSED — the machine reveals the true suspect.' });
+  };
+
+  return <main className="case">
+    <header className="top"><div><p>PRIVATE CASE · 1VCPU</p><h1>The Black Book</h1></div><b>{result ? 'CASE CLOSED' : thinking ? 'MACHINE THINKING' : turn === 'player' ? 'YOUR TURN' : 'MACHINE TURN'}</b></header>
+    <section className="brief"><div><small>CASE 040</small><strong>THE CLUNY MEWS AFFAIR</strong><span>Eliminate the innocent. Interrogate the machine. Name the culprit.</span></div><div className="case-progress">{cleared.length}<small>/24 CLEARED</small></div></section>
+    <section className="board">{suspects.map((suspect, index) => { const isCleared = cleared.includes(suspect.name); return <motion.article key={suspect.name} className={`card ${isCleared ? 'cleared' : ''}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * .025 }}><button disabled={!!result} onClick={() => setCleared((list) => isCleared ? list.filter((name) => name !== suspect.name) : [...list, suspect.name])}><Portrait suspect={suspect}/><span className="case-label">CASE FILE {String(index + 1).padStart(2, '0')}</span><b>{suspect.name}</b><small>{suspect.trait}</small></button>{isCleared && <i className="stamp">CLEARED</i>}</motion.article>})}</section>
+    <section className={`chat ${thinking ? 'alert' : ''}`}><div className="chat-head">INTERROGATION LOG <span>{thinking ? 'DECODING RESPONSE…' : 'ENCRYPTED LINE OPEN'}</span></div><div className="thread">{messages.map((message, index) => <p key={message.id || index} className={message.type}>{message.type === 'question' ? `YOU · ${message.text}` : message.type === 'answer' ? `CPU · ${message.text}` : message.text}</p>)}</div><form onSubmit={ask}><input disabled={turn !== 'player' || thinking || !!result} value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask a yes / no question"/><button disabled={turn !== 'player' || thinking || !!result}>ASK</button></form></section>
+    <div className="actions"><button disabled={triviaUsed || turn !== 'player' || !!result} onClick={startTrivia} className="intercept">{triviaUsed ? 'WIRE INTERCEPT USED' : 'WIRE INTERCEPT · 1×'}</button><button disabled={turn !== 'player' || !!result} onClick={() => setGuessOpen(true)} className="guess">MAKE A GUESS</button></div>
+    <AnimatePresence>{triviaOpen && <motion.dialog open className="modal" initial={{ opacity: 0, scale: .94 }} animate={{ opacity: 1, scale: 1 }}><small>WIRE INTERCEPT · FIRST CORRECT ANSWER</small><h2>{activeTrivia.question}</h2>{activeTrivia.options.map((option) => <button key={option} onClick={() => answerTrivia(option)}>{option}</button>)}</motion.dialog>}</AnimatePresence>
+    <AnimatePresence>{reward && <motion.dialog open className="modal reward" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}><small>WIRE INTERCEPT REWARD</small><h2>{reward.type === 'clue' ? 'FREE CLUE' : reward.type === 'extra' ? 'EXTRA TURN' : 'MUTE'}</h2><p>{reward.detail}</p><button onClick={() => setReward(null)}>CONTINUE CASE</button></motion.dialog>}</AnimatePresence>
+    <AnimatePresence>{guessOpen && <motion.dialog open className="modal guess-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><small>FINAL ACCUSATION</small><h2>Who is the hidden suspect?</h2>{suspects.filter((suspect) => !cleared.includes(suspect.name)).map((suspect) => <button key={suspect.name} onClick={() => makeGuess(suspect.name)}>{suspect.name}</button>)}<button className="cancel" onClick={() => setGuessOpen(false)}>CANCEL</button></motion.dialog>}</AnimatePresence>
+    <AnimatePresence>{result && <motion.dialog open className="modal result" initial={{ opacity: 0, scale: .9 }} animate={{ opacity: 1, scale: 1 }}><small>CASE FILE SEALED</small><h2>{result.won ? 'CULPRIT IDENTIFIED' : 'THE MACHINE PREVAILS'}</h2><p>{result.won ? `${result.name} was the culprit. The Black Book closes another case.` : `${result.name} was innocent. The culprit was ${result.culprit}.`}</p><button onClick={() => location.reload()}>OPEN NEW CASE</button></motion.dialog>}</AnimatePresence>
+  </main>;
+}
