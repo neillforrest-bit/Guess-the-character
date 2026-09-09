@@ -1,5 +1,8 @@
 [
-  { "question": "Which chess opening begins 1.e4 e5 2.Nf3 Nc6 3.Bb5?", "options": ["Sicilian Defence", "Ruy Lopez", "Queen's Gambit"], "answer": "Ruy Lopez" },
-  { "question": "Which 1970s Jamaican artist recorded the album Exodus?", "options": ["Bob Marley", "Peter Tosh", "Jimmy Cliff"], "answer": "Bob Marley" },
-  { "question": "Which film movement is known for hard shadows and morally ambiguous detectives?", "options": ["Film noir", "French New Wave", "Italian neorealism"], "answer": "Film noir" }
+  {"category":"Syndicate Ledger","question":"In chess strategy, what does controlling the center primarily improve?","options":["Piece mobility","Pawn color","Clock time"],"answer":"Piece mobility"},
+  {"category":"Syndicate Ledger","question":"Which chess piece is worth roughly three pawns?","options":["Bishop","Rook","Queen"],"answer":"Bishop"},
+  {"category":"Director's Cut","question":"Which visual device is a hallmark of film noir?","options":["Hard shadows","Pastel skies","Soft focus"],"answer":"Hard shadows"},
+  {"category":"Director's Cut","question":"A venetian-blind shadow most often signals which noir feeling?","options":["Entrapment","Celebration","Innocence"],"answer":"Entrapment"},
+  {"category":"Underground Frequencies","question":"Which Jamaican artist recorded the album Exodus?","options":["Bob Marley","Peter Tosh","Jimmy Cliff"],"answer":"Bob Marley"},
+  {"category":"Underground Frequencies","question":"In hip-hop, a DJ typically creates a break by doing what?","options":["Looping percussion","Tuning a violin","Writing a chorus"],"answer":"Looping percussion"}
 ]
