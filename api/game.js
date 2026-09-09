@@ -1,7 +1,8 @@
 const ttlSeconds = 60 * 60 * 12;
 const characterInfo = { Nova: ['star earrings', 'microphone', 'music'], Milo: ['striped tee', 'skateboard', 'sport'], Zuri: ['round glasses', 'camera', 'creative'], Theo: ['cap', 'backpack', 'travel'], Pia: ['flower clip', 'tote bag', 'nature'], Remy: ['headphones', 'hoodie', 'music'] };
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+const characters = new Set(Object.keys(characterInfo));
 
 function id() { return crypto.randomUUID().replaceAll('-', '').slice(0, 12); }
 function key(gameId) { return `guess-who:${gameId}`; }
@@ -50,6 +51,7 @@ export default async function handler(req, res) {
     const me = Number(player), other = me === 1 ? 2 : 1;
     if (action === 'secret') {
       if (game.secrets[me]) reject('Your secret is already locked.');
+      if (!characters.has(payload.secret)) reject('Choose a character from this board.');
       game.secrets[me] = payload.secret; game.messages.push(message(`Player ${me} locked their mystery character.`, 'system'));
     } else if (action === 'ask') {
       if (game.currentPlayer !== me || game.pendingQuestion || !game.secrets[1] || !game.secrets[2]) reject('Wait for your turn.');
@@ -73,6 +75,7 @@ export default async function handler(req, res) {
       game.twistUsed[me] = true; if (payload.kind === 'encore') game.encorePlayer = me; if (payload.kind === 'clue') game.bonuses[me]++; const details = characterInfo[game.secrets[other]]; if (payload.kind === 'theme' && details) game.messages.push(message(`Theme reveal: Player ${other}'s secret belongs to the ${details[2]} crew.`, 'system')); game.messages.push(message(`P${me} drew a twist card.`, 'system'));
     } else if (action === 'guess') {
       if (game.currentPlayer !== me || game.pendingQuestion) reject('Wait for your turn.');
+      if (!characters.has(payload.name)) reject('Choose a character from this board.');
       if (payload.name === game.secrets[other]) { game.winner = me; game.messages.push(message(`P${me} guessed correctly and won!`, 'system')); } else { game.messages.push(message(`P${me} guessed ${payload.name}. Not this time.`, 'system')); game.currentPlayer = other; game.triviaUsed[other] = false; game.twistUsed[other] = false; }
     } else reject('Unknown game action.');
     game.messages = game.messages.slice(-18); await save(game); return res.json(view(game, player));
